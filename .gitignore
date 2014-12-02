@@ -1,0 +1,13 @@
+dist
+cabal-dev
+*.o
+*.hi
+*.chi
+*.chs.h
+.virthualenv
+*.swp
+*.swo
+.DS_Store
+*/.DS_Store
+*.cfg
+users.txt
