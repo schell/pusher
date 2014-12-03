@@ -47,14 +47,17 @@ getUserIsValid name pass users =
 getUserLevel :: UserName -> M.Map UserName UserDetail -> Maybe Int
 getUserLevel name users = userLevel <$> M.lookup name users
 
-addUser :: UsersVar -> UserName -> Int -> ByteString -> Bucket -> AwsCreds -> IO Text
-addUser users name lvl pass buck creds = do
+addUser :: UsersVar -> UserName -> Int -> ByteString -> Maybe Bucket -> Maybe AwsCreds -> IO Text
+addUser users name lvl pass mbuck mcreds = do
     Just hpass <- hashPasswordUsingPolicy slowerBcryptHashingPolicy pass
     mUser <- atomically $ M.lookup name <$> readTVar users
     let detail = case mUser of
                      Nothing -> UserDetail lvl hpass M.empty
                      Just d  -> d
-        detail' = addCreds detail $ M.fromList [(buck, creds)]
+        mdetail = do buck <- mbuck
+                     creds <- mcreds
+                     return $ addCreds detail $ M.fromList [(buck, creds)]
+        detail' = maybe detail id mdetail
     if validatePassword (userPass detail) pass
     then do atomically $ modifyTVar' users $ M.insert name detail'
             return "ok"

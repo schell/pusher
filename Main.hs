@@ -12,7 +12,7 @@ import AwsOps
 import Aws.S3.Core
 import System.Environment
 import System.IO
-import System.Directory
+import System.Directory (doesFileExist, getCurrentDirectory)
 import Web.Scotty.Trans
 import Network.HTTP.Types.Status
 import Control.Concurrent.STM
@@ -25,6 +25,7 @@ import Data.Typeable
 import Data.Configurator.Types
 import Data.Configurator as DC
 import Data.Text as T
+import Data.Text.IO (readFile)
 import qualified Control.Monad.Morph as MT
 import qualified Data.ByteString as B
 import qualified Data.Text.Lazy as LT
@@ -34,9 +35,13 @@ deriving instance Typeable Config
 type ActionE r = ActionT LT.Text (Eff r)
 type ScottyE r = ScottyT LT.Text (Eff r)
 
+
 optionalParam :: Parsable a
               => LT.Text -> ActionE r (Maybe a)
 optionalParam x = (fmap Just $ param x) `rescue` (const $ return Nothing)
+
+--optionalText :: LT.Text -> ActionE r (Maybe LT.Text)
+--optionalText
 
 defaultParam :: Parsable a
              => LT.Text -> a -> ActionE r a
@@ -59,6 +64,22 @@ withAuthLvl lvl f = do
     if authd && authlvl <= lvl then f
       else do status unauthorized401
               html "unauthorized 401"
+
+getCreds :: ( SetMember Lift (Lift IO) r
+            , Member (Reader UsersVar) r) => ActionE r (Maybe AwsCreds)
+getCreds = do
+    name  <- param "name"
+    pass  <- param "pass"
+    buck  <- param "bucket"
+    users <- askE
+    liftE $ atomically $ (getAwsCreds name pass buck) <$> readTVar users
+
+withCreds f = do
+    mcreds  <- getCreds
+    case mcreds of
+        Nothing -> do status unauthorized401
+                      html "unauthorized 401"
+        Just c  -> f c
 
 instance Parsable CannedAcl where
    parseParam "AclPrivate" = Right AclPrivate
@@ -88,7 +109,7 @@ main = do
         Just f  -> do f' <- (++ "/" ++ f) <$> getCurrentDirectory
                       fe <- doesFileExist f'
                       if fe
-                        then do s <- readFile f'
+                        then do s <- System.IO.readFile f'
                                 return $ (read s :: Users)
                         else return M.empty
 
@@ -97,45 +118,92 @@ main = do
     print users
     usersVar <- atomically $ newTVar users
 
-    -- Start up our good old scotty and give him some routes.
+    let nothingIfNull m = case m of
+                              Nothing -> Nothing
+                              Just "" -> Nothing
+                              Just b  -> Just b
 
+    -- Start up our good old scotty and give him some routes.
     let r = runLift . flip runReader usersVar
                     . flip runReader cfg
 
     scottyT port r r $ do
+        -- Misc
         get "/" $ html $ "hello"
-        get "/authCheck" $ do
+        get "/auth-check" $ do
             lvl <- param "lvl"
-            withAuthLvl lvl $ html "okay"
+            withAuthLvl lvl $ text "okay"
 
+        -- Users
         get "/users" $ do
             users' <- liftE . atomically . readTVar =<< askE
-            html $ LT.fromStrict $ quantifyUsers $ M.toList users'
+            text $ LT.fromStrict $ quantifyUsers $ M.toList users'
 
         get "/users.txt" $ do
             withAuthLvl 0 $ do
                 (users' :: Users) <- liftE . atomically . readTVar =<< askE
-                html $ LT.pack $ show users'
+                text $ LT.pack $ show users'
 
-        postUserRoute
-        postUploadRoute
+        get "/user" $ (liftE $ Data.Text.IO.readFile "static/new-user.html")
+            >>= html . LT.fromStrict
 
-        notFound $ html "not found 404"
+        post "/user" postUserRoute
 
-postUserRoute = post "/user" $ do
+        -- Querying
+        get "/list" $ do
+            bucket  <- param "bucket"
+            mprefix <- nothingIfNull <$> optionalParam "prefix"
+            mdelim  <- nothingIfNull <$> optionalParam "delimiter"
+            withCreds $ \c -> do infos <- liftE $ listDirectory c bucket mprefix mdelim
+                                 text $ LT.intercalate "\n" $ Prelude.map (LT.fromStrict . objectKey) infos
+
+        -- Uploading new files
+        post "/upload" postUploadRoute
+
+        -- Copying existing files
+        get "/copy" $ do
+            bucket <- param "bucket"
+            from   <- param "from"
+            to     <- param "to"
+            withCreds $ \c -> do void $ liftE $ copyFile c bucket from to
+                                 text "okay"
+
+        get "/copy-folder" $ do
+            bucket <- param "bucket"
+            from   <- param "from"
+            to     <- param "to"
+            withCreds $ \c -> do void $ liftE $ copyDirectory c bucket from to
+                                 text "okay"
+
+        -- Catchall
+        notFound $ text "not found 404"
+
+postUserRoute = do
     name     <- param "name"
     pass     <- param "pass"
+    addlvl   <- param "lvl"
     users'   <- liftE . atomically . readTVar =<< askE
-    let addlvl  = maybe 10 id $ getUserLevel name users'
-    withAuthLvl addlvl $ do
-        buck <- param "bucket"
-        key  <- param "key"
-        secr <- param "secret"
-        msg  <- askE >>= \users -> liftE $
-            addUser users name addlvl pass buck $ AwsCreds key secr
-        html $ LT.fromStrict msg
+    let userlvl = maybe 10 id $ getUserLevel name users'
+    if userlvl >= addlvl
+      then withAuthLvl userlvl $ do
+               mbuck <- optionalParam "bucket"
+               mkey  <- optionalParam "key"
+               msecr <- optionalParam "secret"
+               let nothingIfNull m = case m of
+                                         Nothing -> Nothing
+                                         Just "" -> Nothing
+                                         Just b  -> Just b
 
-postUploadRoute = post "/upload" $ do
+               msg  <- askE >>= \users -> liftE $
+                   addUser users name addlvl pass (nothingIfNull mbuck) $ do
+                       key  <- nothingIfNull mkey
+                       secr <- nothingIfNull msecr
+                       return $ AwsCreds key secr
+               html $ LT.fromStrict msg
+      else do status unauthorized401
+              html "unauthorized 401"
+
+postUploadRoute = do
     name  <- param "name"
     pass  <- param "pass"
     buck  <- param "bucket"
@@ -149,7 +217,7 @@ postUploadRoute = post "/upload" $ do
     case mCreds of
         Nothing -> html "invalid pass"
         Just c  -> do fs <- files
-                      ts <- forM fs (liftE . uploadFile buck c ctype cenc acl)
+                      ts <- forM fs (liftE . uploadFile c buck ctype cenc acl)
                       html $ LT.fromStrict $ T.concat ts
 
 askE :: (MT.MonadTrans m, Member (Reader a) r, Typeable a) => m (Eff r) a

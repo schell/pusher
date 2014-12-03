@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css" rel="stylesheet">
+    <script src="//code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.1/js/bootstrap.min.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <div class="row">
+        <div class="col-md-12">
+          <fieldset>
+            <form role="form" method="POST" action="/user">
+              <legend>New/Updated User Details:</legend>
+              <div class="form-group">
+                <label for="name">New user's name</label>
+                <input type="text" class="form-control" id="name" name="name" placeholder="username to add">
+              </div>
+              <div class="form-group">
+                <label for="pass">New user's password</label>
+                <input type="password" class="form-control" id="pass" name="pass" placeholder="password for new user">
+              </div>
+
+              <div class="form-group">
+                <label for="lvl">New user's level</label>
+                <select class="form-control" id="lvl" name="lvl">
+                  <option>0</option>
+                  <option>1</option>
+                  <option>2</option>
+                </select>
+                <span id="helpBlock" class="help-block">0 - superuser, 1 - user, 2 - peon</span>
+              </div>
+
+              <fieldset>
+                <legend>Optional Starting Bucket/Creds</legend>
+                <div class="form-group">
+                  <label for="bucket">New user's aws bucket</label>
+                  <input type="text" class="form-control" id="bucket" name="bucket" placeholder="aws bucket">
+                </div>
+                <div class="form-group">
+                  <label for="key">New user's aws key</label>
+                  <input type="text" class="form-control" id="key" name="key" placeholder="aws key">
+                </div>
+                <div class="form-group">
+                  <label for="secret">New user's aws secret</label>
+                  <input type="text" class="form-control" id="secret" name="secret" placeholder="aws secret">
+                </div>
+              </fieldset>
+
+              <legend>Authorization:</legend>
+              <div class="form-group">
+                <label for="authname">Your username</label>
+                <input type="text" class="form-control" id="authname" name="authname" placeholder="your username">
+              </div>
+              <div class="form-group">
+                <label for="authpass">Your password</label>
+                <input type="password" class="form-control" id="authpass" name="authpass" placeholder="your password">
+              </div>
+              <button type="submit" class="btn btn-default">Submit</button>
+            </form>
+          </fieldset>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
