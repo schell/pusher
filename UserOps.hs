@@ -13,7 +13,7 @@ import qualified Data.Map.Strict as M
 
 data AwsCreds = AwsCreds { awsKey :: ByteString
                          , awsSecret :: ByteString
-                         } deriving (Show, Read)
+                         } deriving (Show, Read, Eq)
 
 type UserName = Text
 

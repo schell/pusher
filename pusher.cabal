@@ -73,7 +73,12 @@ executable pusher
                        wai-extra,
                        directory,
                        configurator,
-                       http-types
+                       http-types,
+                       http-client,
+                       conduit,
+                       conduit-extra,
+                       filepath,
+                       time
 
   -- Directories containing source files.
   -- hs-source-dirs:
