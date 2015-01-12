@@ -27,13 +27,13 @@ getFile (FileAccess creds bucket key) = do
     simpleAws cfg scfg r
 
 uploadFile :: AwsCreds -> Bucket -> Maybe B.ByteString -> Maybe Text
-           -> CannedAcl -> File -> IO Text
-uploadFile creds buck ctype cenc acl f = do
+           -> CannedAcl -> Maybe Text -> File -> IO Text
+uploadFile creds buck ctype cenc acl mkey f = do
     awsCreds <- makeCredentials (awsKey creds) (awsSecret creds)
     let scfg = defServiceConfig :: S3Configuration NormalQuery
         cfg  = Configuration Timestamp awsCreds $ defaultLog Warning
         bdy  = RequestBodyLBS $ NWP.fileContent $ snd f
-        name = LT.toStrict $ fst f
+        name = maybe (LT.toStrict $ fst f) id mkey
         r    = (putObject buck name bdy){ poContentType = ctype
                                         , poContentEncoding = cenc
                                         , poAcl = Just acl

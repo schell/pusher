@@ -156,6 +156,13 @@ nothingIfNull m = case m of
                       Just "" -> Nothing
                       Just b  -> Just b
 
+withStaticDir :: (String -> ActionP a) -> ActionP a
+withStaticDir f = do
+    cfg <- MT.lift $ asks pConfig
+    dir <- liftIO $ do cwd <- getCurrentDirectory
+                       lookupDefault (cwd ++ "/static") cfg "static-dir"
+    f dir
+
 main :: IO ()
 main = do
     -- Get the config file from the command line.
@@ -185,8 +192,6 @@ main = do
     usersVar <- atomically $ newTVar users
     logVar   <- atomically $ newTVar $ Log []
 
-
-
     -- Start up our good old scotty and give him some routes.
     let r = flip runReaderT (Pusher logVar usersVar cfg)
     scottyT port r r routes
@@ -200,9 +205,12 @@ routes = do
         text $ LT.pack $ show lg
 
     get "/" $ html $ "hello"
-    get "/auth-check" $ do
+    get "/auth-check-lvl" $ do
         lvl <- param "lvl"
         withAuthLvl lvl $ text "okay"
+
+    get "/auth-check-bucket" $ do
+        withDefaultCreds $ const $ text "okay"
 
     -- Users
     get "/users" $ do
@@ -216,8 +224,9 @@ routes = do
             (users' :: Users) <- liftIO $ atomically $ readTVar usersVar
             text $ LT.pack $ show users'
 
-    get "/user" $ (liftIO $ Data.Text.IO.readFile "static/new-user.html")
-        >>= html . LT.fromStrict
+    get "/user" $ withStaticDir $ \dir -> do
+        txt <- liftIO $ Data.Text.IO.readFile (dir ++ "/new-user.html")
+        html $ LT.fromStrict txt
 
     post "/user" postUserRoute
 
@@ -231,6 +240,9 @@ routes = do
             text $ LT.intercalate "\n" $ Prelude.map (LT.fromStrict . objectKey) infos
 
     -- Uploading new files
+    get "/upload" $ withStaticDir $ \dir -> do
+        txt <- liftIO $ Data.Text.IO.readFile $ dir ++ "/upload.html"
+        html $ LT.fromStrict txt
     post "/upload" postUploadRoute
 
     -- Copying existing files
@@ -302,8 +314,9 @@ postUploadRoute = do
     name  <- param "name"
     pass  <- param "pass"
     buck  <- param "bucket"
-    (ctype :: Maybe B.ByteString) <- optionalParam "content-type"
-    (cenc :: Maybe Text)  <- optionalParam "content-encoding"
+    ctype <- optionalParam "content-type"
+    cenc  <- optionalParam "content-encoding"
+    mkey  <- optionalParam "key"
     acl   <- defaultParam "acl" AclPublicRead
     users <- MT.lift $ asks pUsersVar
 
@@ -312,5 +325,5 @@ postUploadRoute = do
     case mCreds of
         Nothing -> html "invalid pass"
         Just c  -> do fs <- files
-                      ts <- forM fs (liftIO . uploadFile c buck ctype cenc acl)
+                      ts <- forM fs (liftIO . uploadFile c buck ctype cenc acl mkey)
                       html $ LT.fromStrict $ T.concat ts
