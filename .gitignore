@@ -8,6 +8,10 @@ cabal-dev
 *.swp
 *.swo
 .DS_Store
+.cabal-sandbox
+cabal.sandbox.config
 */.DS_Store
 *.cfg
+*.csr
+*.pem
 users.txt

@@ -6,8 +6,12 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{- For generating a self signed certificate to run this server on TLS,
+   @see https://github.com/yesodweb/wai/tree/master/warp-tls
+-}
 module Main where
 
+import Prelude as P
 import UserOps
 import AwsOps
 import Aws.S3.Core
@@ -16,6 +20,7 @@ import System.IO
 import System.Directory (doesFileExist, getCurrentDirectory)
 import System.FilePath
 import Web.Scotty.Trans hiding (get, post)
+import Web.Scotty.TLS
 import qualified Web.Scotty.Trans as WST
 import Network.HTTP.Types.Status
 import Control.Concurrent.STM
@@ -58,26 +63,34 @@ flushLogToDisk = do
     -- Get our log file.
     cfg <- MT.lift $ asks pConfig
     logFile <- liftIO (DC.lookupDefault "log" cfg "log-file" :: IO String)
-    let lfp = if Prelude.head logFile == '/'
+    let lfp = if P.head logFile == '/'
                 then logFile
                 else cwd </> logFile
 
     Log lg <- liftIO $ atomically $ readTVar var
-    let fn = Prelude.unwords [lfp, "-", show utc]
+    let fn = P.unwords [lfp, "-", show utc]
     liftIO $ do Data.Text.IO.writeFile fn $ T.pack $ show lg
                 atomically $ modifyTVar' var (const $ Log [])
+
+flushUsersToDisk :: ActionP ()
+flushUsersToDisk = do
+    cfg       <- MT.lift $ asks pConfig
+    usersFile <- liftIO (DC.lookupDefault "users.txt" cfg "users-file" :: IO String)
+    usersVar  <- MT.lift $ asks pUsersVar
+    users     <- liftIO $ atomically $ readTVar usersVar
+    liftIO $ do Data.Text.IO.writeFile usersFile $ T.pack $ show users
 
 log_ :: Text -> ActionP ()
 log_ path = do
     utc <- liftIO getCurrentTime
     ps  <- params
-    let ps' = Prelude.map nullpass ps
+    let ps' = P.map nullpass ps
         nullpass ("pass",_) = ("pass", "")
         nullpass p = p
         entry = LogEntry utc ps' path
     var <- MT.lift $ asks pLogVar
     Log lg <- liftIO $ atomically $ readTVar var
-    when (Prelude.length lg >= 1000) flushLogToDisk
+    when (P.length lg >= 1000) flushLogToDisk
     liftIO $ atomically $ modifyTVar' var $ \(Log lg') -> Log (entry:lg')
 
 get :: String -> ActionP () -> ScottyP ()
@@ -173,10 +186,13 @@ main = do
 
     cwd <- getCurrentDirectory
 
-    -- Get our configuration.
+    -- Get our port.
     port  <- lookupDefault 3000 cfg "port"
     -- Get our startup users file from the config.
     mUsersFile <- DC.lookup cfg "users-file"
+    -- Possibly get a TLS certificate and key.
+    mSrvCrt <- DC.lookup cfg "server-crt"
+    mSrvKey <- DC.lookup cfg "server-key"
     -- Create our user map.
     users <- case mUsersFile of
         Nothing -> return M.empty
@@ -192,9 +208,30 @@ main = do
     usersVar <- atomically $ newTVar users
     logVar   <- atomically $ newTVar $ Log []
 
+    let mSK = do crt <- mSrvCrt
+                 key <- mSrvKey
+                 return (crt,key)
     -- Start up our good old scotty and give him some routes.
-    let r = flip runReaderT (Pusher logVar usersVar cfg)
-    scottyT port r r routes
+    let r   = flip runReaderT (Pusher logVar usersVar cfg)
+        clr = do putStrLn "Running HTTP in the clear, SSL NOT enabled."
+                 scottyT port r r routes
+
+    case mSK of
+        Nothing    -> clr
+        Just (c,k) -> do crtExists <- doesFileExist c
+                         keyExists <- doesFileExist k
+                         if crtExists && keyExists
+                         then do putStrLn "SSL Enabled."
+                                 scottyTTLS port k c r r routes
+                         else do putStrLn $ P.unwords [ "SSL Certificate"
+                                                      , if crtExists then "does"
+                                                        else "does not"
+                                                      , "exist. SSL Key"
+                                                      , if keyExists then "does"
+                                                        else "does not"
+                                                      , "exist. "
+                                                      ]
+                                 clr
 
 routes :: ScottyP ()
 routes = do
@@ -237,7 +274,7 @@ routes = do
         mdelim  <- nothingIfNull <$> optionalParam "delimiter"
         withDefaultCreds $ \c -> do
             infos <- liftIO $ listDirectory c bucket mprefix mdelim
-            text $ LT.intercalate "\n" $ Prelude.map (LT.fromStrict . objectKey) infos
+            text $ LT.intercalate "\n" $ P.map (LT.fromStrict . objectKey) infos
 
     -- Uploading new files
     get "/upload" $ withStaticDir $ \dir -> do
@@ -305,6 +342,7 @@ postUserRoute = do
                        key  <- nothingIfNull mkey
                        secr <- nothingIfNull msecr
                        return $ AwsCreds key secr
+               flushUsersToDisk
                html $ LT.fromStrict msg
       else do status unauthorized401
               html "unauthorized 401"
