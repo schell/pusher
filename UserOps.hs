@@ -1,29 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 module UserOps where
 
+import Types
 import Control.Concurrent.STM
 import Control.Applicative
 import Crypto.BCrypt
 import Aws.S3
-import Data.Typeable
 import Data.Text as T
 import Data.ByteString.Char8 as B
 import qualified Data.Map.Strict as M
-
-data AwsCreds = AwsCreds { awsKey :: ByteString
-                         , awsSecret :: ByteString
-                         } deriving (Show, Read, Eq)
-
-type UserName = Text
-
-data UserDetail = UserDetail { userLevel :: Int
-                             , userPass  :: ByteString
-                             , userCreds :: M.Map Bucket AwsCreds
-                             } deriving (Show, Read, Typeable)
-
-type Users = M.Map UserName UserDetail
-type UsersVar = TVar Users
 
 addCreds :: UserDetail -> M.Map Bucket AwsCreds -> UserDetail
 addCreds (UserDetail lvl pass creds) creds' =

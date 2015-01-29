@@ -2,7 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module AwsOps where
 
-import UserOps
+import Types
 import Network.HTTP.Client
 import Web.Scotty (File)
 import Aws
@@ -12,11 +12,6 @@ import Control.Monad
 import qualified Data.Text.Lazy as LT
 import qualified Network.Wai.Parse as NWP
 import qualified Data.ByteString as B
-
-data FileAccess = FileAccess { faCreds  :: AwsCreds
-                             , faBucket :: Bucket
-                             , faKey    :: Text
-                             } deriving (Show, Eq)
 
 getFile :: FileAccess -> IO GetObjectMemoryResponse
 getFile (FileAccess creds bucket key) = do
