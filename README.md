@@ -19,6 +19,7 @@ the following variables:
 
 functions/routes
 ----------------
+
    GET / - say hello 
    GET /log - display the log file
    GET /auth-check-lvl - check your authorization
