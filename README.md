@@ -16,6 +16,7 @@ the following variables:
     tmp-dir = "/var/tmp/blah"
     server-key = "key.pem"
     server-crt = "certificate.pem"
+    static-dir = "/some/place/to/put/static/files/likeanimage.png"
 
 functions/routes
 ----------------
