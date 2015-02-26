@@ -82,7 +82,8 @@ executable pusher
                        conduit-extra,
                        filepath,
                        mime-types,
-                       time
+                       time,
+                       process
 
   -- Directories containing source files.
   -- hs-source-dirs:

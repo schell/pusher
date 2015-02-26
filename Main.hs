@@ -50,6 +50,7 @@ main = do
     print users
     usersVar <- atomically $ newTVar users
     logVar   <- atomically $ newTVar $ Log []
+    uidVar   <- atomically $ newTVar $ UniqueID 0
 
     -- Group both certs because if one is missing their point is lost.
     let mSK = do crt <- mSrvCrt
@@ -57,7 +58,7 @@ main = do
                  return (crt,key)
 
     -- Start up our good old scotty and give him some routes.
-    let r = flip runReaderT (Pusher logVar usersVar cfg)
+    let r = flip runReaderT (Pusher logVar usersVar cfg uidVar)
         f = do putStrLn "Running HTTP in the clear, SSL NOT enabled."
                scottyT port r r routes
         p c k = putStrLn $ unwords [ "SSL Certificate"

@@ -13,11 +13,12 @@ import Types
 import Html
 import Page.Upload
 import Page.NewUser
+import Page.UploadZip
 import UserOps
 import AwsOps
 import Aws.S3.Core
 import System.FilePath
-import System.Directory (doesFileExist, getCurrentDirectory)
+import System.Directory (doesFileExist, getCurrentDirectory, getTemporaryDirectory)
 import Web.Scotty.Trans hiding (get, post)
 import Network.HTTP.Types.Status
 import Network.Wai
@@ -42,6 +43,13 @@ import qualified Data.Map.Strict as M
 --------------------------------------------------------------------------------
 -- Route helpers
 --------------------------------------------------------------------------------
+newUniqueID :: ActionP UniqueID
+newUniqueID = do
+    uidVar <- MT.lift $ asks pNextID
+    uid <- liftIO $ atomically $ readTVar uidVar
+    liftIO $ atomically $ modifyTVar' uidVar succ
+    return uid
+
 flushLogToDisk :: ActionP ()
 flushLogToDisk = do
     utc <- liftIO getCurrentTime
@@ -163,6 +171,13 @@ withStaticDir f = do
                        lookupDefault (cwd ++ "/static") cfg "static-dir"
     f dir
 
+getTempDir :: ActionP FilePath
+getTempDir = do
+    cfg <- MT.lift $ asks pConfig
+    tmp <- liftIO $ do tmp <- getTemporaryDirectory
+                       lookupDefault tmp cfg "tmp-dir"
+    return tmp
+
 --------------------------------------------------------------------------------
 -- The actual routes
 --------------------------------------------------------------------------------
@@ -209,6 +224,10 @@ routes = do
     -- Uploading new files
     get "/upload" $ blaze uploadPage
     post "/upload" postUploadRoute
+
+    -- Uploading a zip of an entire directory
+    get "/upload-zip" $ blaze uploadZipPage
+    post "/upload-zip" postUploadZipRoute
 
     -- Copying existing files
     get "/copy" $ do
@@ -304,3 +323,21 @@ postUploadRoute = do
         Just c  -> do fs <- files
                       ts <- forM fs (liftIO . uploadFile c buck ctype cenc acl mkey)
                       html $ LT.fromStrict $ T.concat ts
+
+postUploadZipRoute :: ActionP ()
+postUploadZipRoute = do
+    name   <- param "name"
+    pass   <- param "pass"
+    buck   <- param "bucket"
+    key    <- param "key"
+    acl    <- defaultParam "acl" AclPublicRead
+    users  <- MT.lift $ asks pUsersVar
+    uid    <- newUniqueID
+    mCreds <- liftIO $ atomically $ (getAwsCreds name pass buck) <$> readTVar users
+    case mCreds of
+        Nothing -> html "invalid pass"
+        Just c -> do f <- P.head <$> files
+                     tmp <- getTempDir
+                     t <- liftIO $ uploadZippedDir tmp uid c buck acl key f
+                     text $ LT.fromStrict t
+
