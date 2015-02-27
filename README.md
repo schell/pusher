@@ -17,6 +17,7 @@ the following variables:
     server-key = "key.pem"
     server-crt = "certificate.pem"
     static-dir = "/some/place/to/put/static/files/likeanimage.png"
+    sign-in-cookie-life = 3600 #in seconds
 
 functions/routes
 ----------------

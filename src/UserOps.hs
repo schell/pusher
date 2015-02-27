@@ -11,8 +11,8 @@ import Data.ByteString.Char8 as B
 import qualified Data.Map.Strict as M
 
 addCreds :: UserDetail -> M.Map Bucket AwsCreds -> UserDetail
-addCreds (UserDetail lvl pass creds) creds' =
-    UserDetail lvl pass $ M.union creds' creds
+addCreds (UserDetail lvl name pass creds) creds' =
+    UserDetail lvl name pass $ M.union creds' creds
 
 getAwsCreds :: UserName -> ByteString -> Bucket -> Users -> Maybe AwsCreds
 getAwsCreds name pass buck users =
@@ -37,7 +37,7 @@ addUser users name lvl pass mbuck mcreds = do
     Just hpass <- hashPasswordUsingPolicy slowerBcryptHashingPolicy pass
     mUser <- atomically $ M.lookup name <$> readTVar users
     let detail = case mUser of
-                     Nothing -> UserDetail lvl hpass M.empty
+                     Nothing -> UserDetail lvl name hpass M.empty
                      Just d  -> d
         mdetail = do buck <- mbuck
                      creds <- mcreds

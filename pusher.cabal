@@ -83,10 +83,12 @@ executable pusher
                        filepath,
                        mime-types,
                        time,
-                       process
+                       process,
+                       clientsession,
+                       aeson
 
   -- Directories containing source files.
-  -- hs-source-dirs:
+  hs-source-dirs:      src
 
   -- Base language which the package is written in.
   default-language:    Haskell2010

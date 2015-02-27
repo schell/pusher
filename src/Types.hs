@@ -37,9 +37,12 @@ data AwsCreds = AwsCreds { awsKey :: ByteString
 type UserName = Text
 
 data UserDetail = UserDetail { userLevel :: Int
+                             , userName  :: UserName
                              , userPass  :: ByteString
                              , userCreds :: M.Map Bucket AwsCreds
-                             } deriving (Show, Read)
+                             } deriving (Show, Read, Eq)
+
+data UserCookie = UserCookie UserDetail UTCTime deriving (Show, Read, Eq)
 
 type Users = M.Map UserName UserDetail
 type UsersVar = TVar Users

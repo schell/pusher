@@ -4,7 +4,6 @@ module AwsOps where
 
 import Prelude as P
 import Types
-import Utils
 import Network.HTTP.Client
 import Network.Mime
 import Web.Scotty (File)
@@ -12,7 +11,6 @@ import Aws
 import Aws.S3
 import Data.Text as T
 import Control.Monad
-import Control.Concurrent
 import Control.Applicative
 import System.Directory hiding (copyFile)
 import System.FilePath
