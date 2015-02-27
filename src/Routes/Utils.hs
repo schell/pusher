@@ -77,7 +77,8 @@ log_ path = do
     utc <- liftIO getCurrentTime
     ps  <- params
     let ps' = P.map nullpass ps
-        nullpass ("pass",_) = ("pass", "")
+        nullpass ("pass",_) = ("pass", "***")
+        nullpass ("authpass",_) = ("authpass", "***")
         nullpass p = p
         entry = LogEntry utc ps' path
     var <- MT.lift $ asks pLogVar
