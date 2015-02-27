@@ -54,10 +54,10 @@ routes = do
         blaze logoutHtml
 
     -- Misc
-    WST.get "/log" $ do
+    WST.get "/log" $ withAuthdUser $ const $ do
         logVar  <- MT.lift $ asks pLogVar
         (Log lg) <- liftIO $ atomically $ readTVar logVar
-        text $ LT.pack $ show lg
+        blaze $ logHtml lg
 
     get "/" $ getHtmlContainer >>= \c -> blaze $ c "hello"
 

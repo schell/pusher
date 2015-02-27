@@ -49,9 +49,9 @@ newUniqueID = do
 
 flushLogToDisk :: ActionP ()
 flushLogToDisk = do
-    utc <- liftIO getCurrentTime
-    cwd <- liftIO getCurrentDirectory
-    var <- MT.lift $ asks pLogVar
+    utc  <- liftIO getCurrentTime
+    cwd  <- liftIO getCurrentDirectory
+    var  <- MT.lift $ asks pLogVar
     -- Get our log file.
     cfg <- MT.lift $ asks pConfig
     logFile <- liftIO (DC.lookupDefault "log" cfg "log-file" :: IO String)
@@ -76,11 +76,13 @@ log_ :: Text -> ActionP ()
 log_ path = do
     utc <- liftIO getCurrentTime
     ps  <- params
+    musr <- getUser
     let ps' = P.map nullpass ps
         nullpass ("pass",_) = ("pass", "***")
         nullpass ("authpass",_) = ("authpass", "***")
         nullpass p = p
-        entry = LogEntry utc ps' path
+        usr = maybe ("guest") userName musr
+        entry = LogEntry usr utc ps' path
     var <- MT.lift $ asks pLogVar
     Log lg <- liftIO $ atomically $ readTVar var
     when (P.length lg >= 1000) flushLogToDisk

@@ -47,7 +47,8 @@ data UserCookie = UserCookie UserDetail UTCTime deriving (Show, Read, Eq)
 type Users = M.Map UserName UserDetail
 type UsersVar = TVar Users
 
-data LogEntry = LogEntry { logTime   :: UTCTime
+data LogEntry = LogEntry { logUser   :: UserName
+                         , logTime   :: UTCTime
                          , logParams :: [Param]
                          , logPath   :: Text
                          } deriving (Show, Read)

@@ -62,6 +62,9 @@ loggedInHeader = nav ! class_ "navbar navbar-default" $
             li $ a ! href "/user" $ do
                 i ! class_ "fa fa-user-plus" $ mempty
                 " add user"
+            li $ a ! href "/log" $ do
+                i ! class_ "fa fa-file-text" $ mempty
+                " view log"
             li $ a ! href "/logout" $ do
                 i ! class_ "fa fa-sign-out" $ mempty
                 " logout"
