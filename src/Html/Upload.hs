@@ -2,14 +2,15 @@
 module Html.Upload where
 
 import Prelude
+import Aws.S3
 import Html.Common
 import Text.Blaze.Html5
 import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5.Attributes
 import qualified Text.Blaze.Html5.Attributes as A
 
-uploadHtml :: Html
-uploadHtml =
+uploadHtml :: [Bucket] -> Html
+uploadHtml bs =
     userContainer $ H.form ! method "POST" ! action "/upload"
                                     ! enctype "multipart/form-data" $ do
         legend "Upload a file:"
@@ -17,8 +18,8 @@ uploadHtml =
             H.label ! for "file" $ "Choose file"
             input ! type_ "file" ! A.id "file" ! name "file"
             H.label ! for "bucket" $ "Upload to bucket:"
-            input ! type_ "text" ! class_ "form-control" ! A.id "bucket"
-                  ! name "bucket" ! placeholder "bucket"
+            br
+            selectBucket "bucket" bs
         fieldset $ do
             legend "Optional"
             H.div ! class_ "form-group" $ do

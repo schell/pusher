@@ -2,10 +2,12 @@
 module Html.Common where
 
 import Prelude
+import Aws.S3
+import Control.Monad
 import Data.Monoid (mempty)
 import Text.Blaze.Html5
 import qualified Text.Blaze.Html5 as H
-import Text.Blaze.Html5.Attributes
+import Text.Blaze.Html5.Attributes as A
 
 headNavContentHtml :: Html -> Html -> Html -> Html
 headNavContentHtml h n f =
@@ -83,3 +85,9 @@ loggedOutHeader = nav ! class_ "navbar navbar-default" $
             li $ a ! href "/login" $ do
                 i ! class_ "fa fa-sign-in" $ mempty
                 " login"
+
+selectBucket :: AttributeValue -> [Bucket] -> Html
+selectBucket idName bs = do
+    select ! A.id idName ! name idName $ forM_ bs $ \bucket ->
+        option $ toHtml bucket
+

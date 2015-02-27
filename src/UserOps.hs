@@ -10,6 +10,9 @@ import Data.Text as T
 import Data.ByteString.Char8 as B
 import qualified Data.Map.Strict as M
 
+userBuckets :: UserDetail -> [Bucket]
+userBuckets = M.keys . userCreds
+
 addCreds :: UserDetail -> M.Map Bucket AwsCreds -> UserDetail
 addCreds (UserDetail lvl name pass creds) creds' =
     UserDetail lvl name pass $ M.union creds' creds

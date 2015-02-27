@@ -112,15 +112,16 @@ routes = do
             text $ LT.intercalate "\n" $ P.map (LT.fromStrict . objectKey) infos
 
     -- Uploading new files
-    get "/upload" $ withAuthdUser $ const $ blaze uploadHtml
+    get "/upload" $ withAuthdUser $ \u -> blaze $ uploadHtml $ userBuckets u
     post "/upload" postUploadRoute
 
     -- Uploading a zip of an entire directory
-    get "/upload-zip" $ withAuthdUser $ const $ blaze uploadZipHtml
+    get "/upload-zip" $ withAuthdUser $ \u ->
+        blaze $ uploadZipHtml $ userBuckets u
     post "/upload-zip" postUploadZipRoute
 
     -- Copying existing files
-    get "/copy" $ withAuthdUser $ const $ blaze copyHtml
+    get "/copy" $ withAuthdUser $ \u -> blaze $ copyHtml $ userBuckets u
     post "/copy" $ withAuthdUser $ \(UserDetail{userName=name, userPass=pass}) -> do
         fbucket   <- param "bucket"
         toBucket <- optionalParam "toBucket"
@@ -137,7 +138,7 @@ routes = do
             Just c  -> do _ <- liftIO $ uncurry copyFile c
                           text "okay"
 
-    get "/copy-folder" $ withAuthdUser $ const $ blaze copyFolderHtml
+    get "/copy-folder" $ withAuthdUser $ \u -> blaze $ copyFolderHtml $ userBuckets u
     post "/copy-folder" $ withAuthdUser $ \(UserDetail{userName=name, userPass=pass}) -> do
         fbucket  <- param "bucket"
         toBucket <- optionalParam "toBucket"
