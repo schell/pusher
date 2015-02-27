@@ -7,12 +7,14 @@ import Text.Blaze.Html5
 import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5.Attributes
 
-htmlContainerWithHeadHtml :: Html -> Html -> Html
-htmlContainerWithHeadHtml h f =
+headNavContentHtml :: Html -> Html -> Html -> Html
+headNavContentHtml h n f =
     docTypeHtml ! lang "en" $ do
         h
-        body $ H.div ! class_ "container" $ H.div ! class_ "row" $
-            H.div ! class_ "col-md-12" $ fieldset $ f
+        body $ do
+            n
+            H.div ! class_ "container" $ H.div ! class_ "row" $
+                H.div ! class_ "col-md-12" $ fieldset $ f
 
 standardHead :: Html
 standardHead = H.head $ do
@@ -26,12 +28,14 @@ standardHead = H.head $ do
 
 
 userContainer :: Html -> Html
-userContainer f = htmlContainerWithHeadHtml standardHead $ do
+userContainer f = headNavContentHtml
+    standardHead
     loggedInHeader
     f
 
 guestContainer :: Html -> Html
-guestContainer f = htmlContainerWithHeadHtml standardHead $ do
+guestContainer f = headNavContentHtml
+    standardHead
     loggedOutHeader
     f
 
