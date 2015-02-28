@@ -140,22 +140,20 @@ routes = do
                           blaze $ userContainer "okay"
 
     get "/copy-folder" $ withAuthdUser $ \u -> blaze $ copyFolderHtml $ userBuckets u
-    post "/copy-folder" $ withAuthdUser $ \(UserDetail{userName=name, userPass=pass}) -> do
+    post "/copy-folder" $ withAuthdUser $ \(UserDetail{..}) -> do
         fbucket  <- param "bucket"
         toBucket <- optionalParam "toBucket"
         from     <- param "from"
         to       <- param "to"
         let tbucket = maybe fbucket id toBucket
-        mcf <- getCredsFor name pass fbucket
-        mct <- getCredsFor name pass tbucket
-        let mc = do cf <- mcf
-                    ct <- mct
+            mc = do cf <- M.lookup fbucket userCreds
+                    ct <- M.lookup tbucket userCreds
                     return (FileAccess cf fbucket from, FileAccess ct tbucket to)
         liftIO $ print mc
         case mc of
-            Nothing -> status unauthorized401 >> text "unauthorize 401"
-            Just c  -> do _ <- liftIO $ uncurry copyDirectory c
-                          text "okay"
+            Nothing -> blaze $ userContainer "Seems you don't have a bucket's credentials."
+            Just c  -> do _ <- liftIO $ uncurry copyFile c
+                          blaze $ userContainer "okay"
 
     -- Catchall with static dir lookup
     WST.get (function $ const $ Just []) $ do
@@ -166,7 +164,7 @@ routes = do
             exists <- liftIO $ doesFileExist fp
             if not exists
             then do status notFound404
-                    text $ LT.pack $ "'" ++ path ++ "' does not exist."
+                    blaze $ guestContainer $ H.toHtml $ "'" ++ path ++ "' does not exist."
             else do bytes <- liftIO $ B.readFile fp
                     addHeader "Content-Type" $ LT.pack $ B.unpack mt
                     raw $ LB.fromStrict bytes
@@ -193,7 +191,7 @@ postUserRoute = do
                flushUsersToDisk
                html $ LT.fromStrict msg
       else do status unauthorized401
-              html "unauthorized 401"
+              blaze $ userContainer "unauthorized 401"
 
 postUploadRoute :: ActionP ()
 postUploadRoute = withAuthdUser $ \UserDetail{userCreds=creds} -> do
