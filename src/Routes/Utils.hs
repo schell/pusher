@@ -146,7 +146,7 @@ findUser name = do
     users <- liftIO $ atomically $ readTVar uVar
     let op = do thatUser <- M.lookup name users
                 thisUser <- muser
-                if userLevel thatUser > userLevel thisUser
+                if userLevel thatUser > userLevel thisUser || userName thatUser == name
                 then return thatUser
                 else fail ""
     return op
