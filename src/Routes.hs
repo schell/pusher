@@ -103,13 +103,16 @@ routes = do
                           blaze $ userContainer "Okay, credentials added."
 
     -- Querying
-    get "/list" $ do
+    get "/list" $ withAuthdUser $ \u -> blaze $ listBucketFormHtml $ userBuckets u
+    post "/list" $ withAuthdUser $ \(UserDetail{..}) -> do
         bucket  <- param "bucket"
         mprefix <- nothingIfNull <$> optionalParam "prefix"
         mdelim  <- nothingIfNull <$> optionalParam "delimiter"
-        withDefaultCreds $ \c -> do
-            infos <- liftIO $ listDirectory c bucket mprefix mdelim
-            text $ LT.intercalate "\n" $ P.map (LT.fromStrict . objectKey) infos
+        let mcreds = M.lookup bucket userCreds
+        case mcreds of
+            Nothing -> blaze $ userContainer "Seems you don't have this bucket's credentials."
+            Just c  -> do infos <- liftIO $ listDirectory c bucket mprefix mdelim
+                          blaze $ listBucketHtml $ P.map objectKey infos
 
     -- Uploading new files
     get "/upload" $ withAuthdUser $ \u -> blaze $ uploadHtml $ userBuckets u
@@ -122,21 +125,19 @@ routes = do
 
     -- Copying existing files
     get "/copy" $ withAuthdUser $ \u -> blaze $ copyHtml $ userBuckets u
-    post "/copy" $ withAuthdUser $ \(UserDetail{userName=name, userPass=pass}) -> do
+    post "/copy" $ withAuthdUser $ \(UserDetail{..}) -> do
         fbucket   <- param "bucket"
         toBucket <- optionalParam "toBucket"
         from     <- param "from"
         to       <- param "to"
         let tbucket = maybe fbucket id toBucket
-        mcf <- getCredsFor name pass fbucket
-        mct <- getCredsFor name pass tbucket
-        let mc = do cf <- mcf
-                    ct <- mct
+            mc = do cf <- M.lookup fbucket userCreds
+                    ct <- M.lookup tbucket userCreds
                     return (FileAccess cf fbucket from, FileAccess ct tbucket to)
         case mc of
-            Nothing -> status unauthorized401 >> text "unauthorized 401"
+            Nothing -> blaze $ userContainer "Seems you don't have a bucket's credentials."
             Just c  -> do _ <- liftIO $ uncurry copyFile c
-                          text "okay"
+                          blaze $ userContainer "okay"
 
     get "/copy-folder" $ withAuthdUser $ \u -> blaze $ copyFolderHtml $ userBuckets u
     post "/copy-folder" $ withAuthdUser $ \(UserDetail{userName=name, userPass=pass}) -> do

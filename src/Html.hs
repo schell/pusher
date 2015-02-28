@@ -16,6 +16,7 @@ import Html.CopyFolder as H
 import Html.Login as H
 import Html.Logout as H
 import Html.Log as H
+import Html.ListBucket as H
 import Html.Users as H
 import Text.Blaze.Html5
 import qualified Text.Blaze.Html.Renderer.Utf8 as Utf8
