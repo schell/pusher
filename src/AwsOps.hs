@@ -50,14 +50,14 @@ uploadFile mngr creds buck ctype cenc acl mkey f = do
     try $ runResourceT $ pureAws cfg scfg mngr r
 
 updateTaskOutput :: TasksVar -> B.ByteString -> UniqueID -> IO ()
-updateTaskOutput tvar bs = atomically . modifyTVar' tvar . M.adjust (bs `B.append` "\n" `B.append`)
+updateTaskOutput tvar bs = atomically . modifyTVar' tvar . M.adjust (bs:)
 
 -- | Uploads a zip of a bunch of files and directories into their
 -- corresponding places on s3. Proxies files to uploadFile.
 uploadZippedDir :: Manager -> FilePath -> UniqueID -> TasksVar -> AwsCreds
                 -> Bucket -> CannedAcl -> Text -> File -> IO ()
 uploadZippedDir mngr tmp uid tvar creds buck acl key f = do
-    atomically $ modifyTVar' tvar $ M.insert uid "Starting expansion and uploads..."
+    atomically $ modifyTVar' tvar $ M.insert uid ["Starting expansion and uploads..."]
     void $ forkIO $ do
         -- Create a temp dir to hold our zip
         let zbin  = NWP.fileContent $ snd f
@@ -86,8 +86,8 @@ uploadZippedDir mngr tmp uid tvar creds buck acl key f = do
         -- as gzipped encoding.
         let len = P.length fs''
             is = [0..] :: [Int]
-        success <- forM (P.zip is fs'') $ \(i, file) -> do
-            (code, stdout, stderr) <- readProcessWithExitCode "tar" ["xf", zname, "-C", zextr, file] []
+        success <- forM (P.zip3 is fs'' fs') $ \(i, file, tfile) -> do
+            (code, stdout, stderr) <- readProcessWithExitCode "tar" ["xzf", zname, "-C", zextr, tfile] []
             case code of
                 ExitSuccess -> do lbsf <- LBS.readFile $ zextr </> file
                                   let (menc,key') = if ".gz" `L.isSuffixOf` file

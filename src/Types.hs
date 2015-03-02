@@ -48,7 +48,7 @@ data UserCookie = UserCookie UserDetail UTCTime deriving (Show, Read, Eq)
 type Users = M.Map UserName UserDetail
 type UsersVar = TVar Users
 
-type Tasks = M.Map UniqueID B.ByteString
+type Tasks = M.Map UniqueID [B.ByteString]
 type TasksVar = TVar Tasks
 
 data LogEntry = LogEntry { logUser   :: UserName
