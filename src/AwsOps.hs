@@ -87,7 +87,7 @@ uploadZippedDir mngr tmp uid tvar creds buck acl key f = do
         let len = P.length fs''
             is = [0..] :: [Int]
         success <- forM (P.zip is fs'') $ \(i, file) -> do
-            (code, _, _) <- readProcessWithExitCode "tar" ["xf", zname, "-C", zextr, file] []
+            (code, stdout, stderr) <- readProcessWithExitCode "tar" ["xf", zname, "-C", zextr, file] []
             case code of
                 ExitSuccess -> do lbsf <- LBS.readFile $ zextr </> file
                                   let (menc,key') = if ".gz" `L.isSuffixOf` file
@@ -107,7 +107,12 @@ uploadZippedDir mngr tmp uid tvar creds buck acl key f = do
                                                       Right st -> (B.pack $ msg ++ " " ++ show st, 1)
                                   updateTaskOutput tvar msg' uid
                                   return s
-                ExitFailure _ -> return 0
+                ExitFailure e -> do let err = P.unlines [ "Error(" ++ show e ++ "):"
+                                                        , "  StdOut: " ++ stdout
+                                                        , "  StdErr: " ++ stderr
+                                                        ]
+                                    updateTaskOutput tvar (B.pack err) uid
+                                    return 0
         let successes = sum success
             msg = P.unwords [ "Complete. Uploaded"
                             , show (successes :: Int)
