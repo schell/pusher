@@ -8,6 +8,7 @@ import Control.Monad
 import Html.Common
 import Text.Blaze.Html5 as H
 import Text.Blaze.Html5.Attributes
+import qualified Data.ByteString.Char8 as B
 
 taskLinkHtml :: UniqueID -> Html
 taskLinkHtml uid = userContainer $ p $ do
@@ -15,9 +16,6 @@ taskLinkHtml uid = userContainer $ p $ do
     a ! href (toValue ("/task/" ++ show uid)) $
         toHtml $ unwords ["Task", show uid]
 
-taskHtml :: String -> Html
-taskHtml out = userContainer $ table ! class_ "table table-striped" $ do
-    thead $ tr $ do
-        th "Files"
-    tbody $ forM_ (lines out) $ \ln -> do
-        tr $ td $ toHtml ln
+taskHtml :: [B.ByteString] -> Html
+taskHtml out = userContainer $ H.div $ forM_ out $ \ln -> do
+    pre $ toHtml $ B.unpack ln

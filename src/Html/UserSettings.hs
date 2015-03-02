@@ -8,8 +8,6 @@ import Html.Common
 import Text.Blaze.Html5
 import Text.Blaze.Html5.Attributes
 import qualified Data.Map.Strict as M
-import qualified Text.Blaze.Html5 as H
-import qualified Text.Blaze.Html5.Attributes as A
 
 userSettingsHtml :: UserDetail -> Html
 userSettingsHtml UserDetail{..} =

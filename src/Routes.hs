@@ -136,7 +136,7 @@ routes = do
         tasks <- liftIO $ atomically $ readTVar tvar
         case M.lookup (UniqueID task) tasks of
             Nothing -> blaze $ userContainer "It seems there is no such task."
-            Just s  -> blaze $ taskHtml $ B.unpack s
+            Just s  -> blaze $ taskHtml s
 
     -- Uploading new files
     get "/upload" $ withAuthdUser $ \u -> blaze $ uploadHtml $ userBuckets u
