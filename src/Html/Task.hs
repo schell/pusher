@@ -17,5 +17,4 @@ taskLinkHtml uid = userContainer $ p $ do
         toHtml $ unwords ["Task", show uid]
 
 taskHtml :: [B.ByteString] -> Html
-taskHtml out = userContainer $ H.div $ forM_ out $ \ln -> do
-    pre $ toHtml $ B.unpack ln
+taskHtml out = userContainer $ H.div $ pre $ toHtml $ B.unpack $ foldr B.append "" out

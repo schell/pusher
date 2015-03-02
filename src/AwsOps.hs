@@ -50,7 +50,8 @@ uploadFile mngr creds buck ctype cenc acl mkey f = do
     try $ runResourceT $ pureAws cfg scfg mngr r
 
 updateTaskOutput :: TasksVar -> B.ByteString -> UniqueID -> IO ()
-updateTaskOutput tvar bs = atomically . modifyTVar' tvar . M.adjust (bs:)
+updateTaskOutput tvar bs = atomically . modifyTVar' tvar . M.adjust (bs':)
+    where bs' = if "\n" `B.isSuffixOf` bs then bs else bs `B.append` "\n"
 
 -- | Uploads a zip of a bunch of files and directories into their
 -- corresponding places on s3. Proxies files to uploadFile.
