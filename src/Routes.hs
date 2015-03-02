@@ -24,11 +24,12 @@ import Network.Wai
 import Network.Mime
 import Control.Concurrent.STM
 import Control.Applicative
-import Control.Monad (forM)
+import Control.Monad
 import Control.Monad.Trans.Reader
 import Control.Monad.IO.Class (liftIO)
 import Data.Text as T
 import qualified Text.Blaze.Html as H
+import qualified Text.Blaze.Html5 as H
 import qualified Web.Scotty.Trans as WST
 import qualified Control.Monad.Morph as MT
 import qualified Data.ByteString.Char8 as B
@@ -83,6 +84,18 @@ routes = do
     get "/user" $ withAuthdUser $ const $ blaze newUserHtml
     post "/user" postUserRoute
 
+    get "/user/password" $ withAuthdUser $ const $ blaze passwordHtml
+    post "/user/password" $ withAuthdUser $ \u -> do
+        pass <- param "pass"
+        chk  <- param "passCheck"
+        if pass /= chk
+        then blaze $ userContainer "Those passwords don't match :("
+        else do u' <- liftIO $ updatePassword u pass
+                e  <- saveUser u'
+                case e of
+                    Left err -> blaze $ userContainer $ H.toHtml err
+                    Right _  -> blaze $ userContainer "Password updated."
+
     get "/user-add-bucket" $ withAuthdUser $ \UserDetail{..} ->
         blaze $ userAddBucketHtml userName
     post "/user-add-bucket" $ withAuthdUser $ const $ do
@@ -102,6 +115,9 @@ routes = do
                           flushUsersToDisk
                           blaze $ userContainer "Okay, credentials added."
 
+    get "/user/settings" $ withAuthdUser $ \u ->
+        blaze $ userSettingsHtml u
+
     -- Querying
     get "/list" $ withAuthdUser $ \u -> blaze $ listBucketFormHtml $ userBuckets u
     post "/list" $ withAuthdUser $ \(UserDetail{..}) -> do
@@ -113,6 +129,14 @@ routes = do
             Nothing -> blaze $ userContainer "Seems you don't have this bucket's credentials."
             Just c  -> do infos <- liftIO $ listDirectory c bucket mprefix mdelim
                           blaze $ listBucketHtml $ P.map objectKey infos
+
+    get "/task/:task" $ withAuthdUser $ const $ do
+        task  <- param "task"
+        tvar  <- MT.lift $ asks pTasks
+        tasks <- liftIO $ atomically $ readTVar tvar
+        case M.lookup (UniqueID task) tasks of
+            Nothing -> blaze $ userContainer "It seems there is no such task."
+            Just s  -> blaze $ taskHtml $ B.unpack s
 
     -- Uploading new files
     get "/upload" $ withAuthdUser $ \u -> blaze $ uploadHtml $ userBuckets u
@@ -200,11 +224,15 @@ postUploadRoute = withAuthdUser $ \UserDetail{userCreds=creds} -> do
     cenc  <- optionalParam "content-encoding"
     mkey  <- optionalParam "key"
     acl   <- defaultParam "acl" AclPublicRead
+    mngr  <- MT.lift $ asks pMngr
     case M.lookup buck creds of
         Nothing -> blaze $ userContainer "no creds for the bucket"
         Just c  -> do fs <- files
-                      ts <- forM fs (liftIO . uploadFile c buck ctype cenc acl mkey)
-                      blaze $ userContainer $ H.toHtml $ T.concat ts
+                      ets <- forM fs (liftIO . uploadFile mngr c buck ctype cenc acl mkey)
+                      blaze $ userContainer $ H.div $ forM_ ets $ \et -> do
+                                   case et of
+                                       Left err -> H.p $ H.toHtml $ show err
+                                       Right po -> H.p $ H.toHtml $ show po
 
 postUploadZipRoute :: ActionP ()
 postUploadZipRoute = withAuthdUser $ \UserDetail{userCreds=creds} -> do
@@ -214,8 +242,10 @@ postUploadZipRoute = withAuthdUser $ \UserDetail{userCreds=creds} -> do
     uid    <- newUniqueID
     case M.lookup buck creds of
         Nothing -> blaze $ userContainer "no creds for the bucket"
-        Just c -> do f <- P.head <$> files
-                     tmp <- getTempDir
-                     t <- liftIO $ uploadZippedDir tmp uid c buck acl key f
-                     blaze $ userContainer $ H.toHtml $ LT.fromStrict t
+        Just c -> do f    <- P.head <$> files
+                     tmp  <- getTempDir
+                     tvar <- MT.lift $ asks pTasks
+                     mngr <- MT.lift $ asks pMngr
+                     liftIO $ uploadZippedDir mngr tmp uid tvar c buck acl key f
+                     blaze $ taskLinkHtml uid
 

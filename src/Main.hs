@@ -12,6 +12,8 @@ import System.Directory (doesFileExist, getCurrentDirectory)
 import System.FilePath
 import Web.Scotty.Trans hiding (get, post)
 import Web.Scotty.TLS
+import Network.HTTP.Client
+import Network.HTTP.Client.TLS
 import Control.Concurrent.STM
 import Control.Applicative
 import Control.Monad.Trans.Reader
@@ -51,14 +53,20 @@ main = do
     usersVar <- atomically $ newTVar users
     logVar   <- atomically $ newTVar $ Log []
     uidVar   <- atomically $ newTVar $ UniqueID 0
+    tasksVar <- atomically $ newTVar $ M.empty
 
     -- Group both certs because if one is missing their point is lost.
     let mSK = do crt <- mSrvCrt
                  key <- mSrvKey
                  return (crt,key)
 
+    -- Create a new http manager for aws requests.
+    mngr <- newManager $
+                maybe defaultManagerSettings (const tlsManagerSettings) mSK
+
+
     -- Start up our good old scotty and give him some routes.
-    let r = flip runReaderT (Pusher logVar usersVar cfg uidVar)
+    let r = flip runReaderT (Pusher logVar usersVar cfg uidVar tasksVar mngr)
         f = do putStrLn "Running HTTP in the clear, SSL NOT enabled."
                scottyT port r r routes
         p c k = putStrLn $ unwords [ "SSL Certificate"

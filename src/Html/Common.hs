@@ -65,6 +65,9 @@ loggedInHeader = nav ! class_ "navbar navbar-default" $
                 " add a bucket"
 
         H.ul ! class_ "nav navbar-nav navbar-right" $ do
+            li $ a ! href "/user/settings" $ do
+                i ! class_ "fa fa-cogs" $ mempty
+                " user settings"
             li $ a ! href "/user" $ do
                 i ! class_ "fa fa-user-plus" $ mempty
                 " add user"

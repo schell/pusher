@@ -78,6 +78,7 @@ executable pusher
                        configurator,
                        http-types,
                        http-client,
+                       http-client-tls,
                        conduit,
                        conduit-extra,
                        filepath,
@@ -85,7 +86,7 @@ executable pusher
                        time,
                        process,
                        clientsession,
-                       aeson
+                       resourcet
 
   -- Directories containing source files.
   hs-source-dirs:      src

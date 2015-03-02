@@ -167,6 +167,18 @@ getUser = do
                                   else fail ""
                       return op
 
+saveUser :: UserDetail -> ActionP (Either String ())
+saveUser u@UserDetail{..} = do
+    uv <- MT.lift $ asks pUsersVar
+    us <- liftIO $ atomically $ readTVar uv
+    case M.lookup userName us of
+        Nothing -> return $ Left $ "Could not find user " ++ T.unpack userName
+        Just _  -> do liftIO $ atomically $ modifyTVar' uv $ M.insert userName u
+                      flushUsersToDisk
+                      return $ Right ()
+
+
+
 getHtmlContainer :: ActionP (H.Html -> H.Html)
 getHtmlContainer = do
     mu <- getUser

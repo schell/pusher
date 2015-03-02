@@ -8,6 +8,7 @@ import Aws.S3
 import Control.Concurrent.STM
 import Control.Monad.Trans.Reader
 import Web.Scotty.Trans hiding (get, post)
+import Network.HTTP.Client
 import Data.Time.Clock
 import Data.Configurator.Types
 import Data.Text as T
@@ -15,7 +16,7 @@ import Data.ByteString.Char8 as B
 import qualified Data.Map.Strict as M
 import qualified Data.Text.Lazy as LT
 
-newtype UniqueID = UniqueID Int
+newtype UniqueID = UniqueID Int deriving (Eq, Ord)
 type UIDVar = TVar UniqueID
 
 instance Show UniqueID where
@@ -47,6 +48,9 @@ data UserCookie = UserCookie UserDetail UTCTime deriving (Show, Read, Eq)
 type Users = M.Map UserName UserDetail
 type UsersVar = TVar Users
 
+type Tasks = M.Map UniqueID B.ByteString
+type TasksVar = TVar Tasks
+
 data LogEntry = LogEntry { logUser   :: UserName
                          , logTime   :: UTCTime
                          , logParams :: [Param]
@@ -58,6 +62,8 @@ data Pusher = Pusher { pLogVar   :: LogVar
                      , pUsersVar :: UsersVar
                      , pConfig   :: Config
                      , pNextID   :: UIDVar
+                     , pTasks    :: TasksVar
+                     , pMngr     :: Manager
                      }
 type ActionP = ActionT LT.Text (ReaderT Pusher IO)
 type ScottyP = ScottyT LT.Text (ReaderT Pusher IO)

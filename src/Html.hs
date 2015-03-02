@@ -18,6 +18,9 @@ import Html.Logout as H
 import Html.Log as H
 import Html.ListBucket as H
 import Html.Users as H
+import Html.UserSettings as H
+import Html.Task as H
+import Html.Password as H
 import Text.Blaze.Html5
 import qualified Text.Blaze.Html.Renderer.Utf8 as Utf8
 import qualified Text.Blaze.Html.Renderer.Pretty as Pretty

@@ -10,6 +10,11 @@ import Data.Text as T
 import Data.ByteString.Char8 as B
 import qualified Data.Map.Strict as M
 
+updatePassword :: UserDetail -> ByteString -> IO UserDetail
+updatePassword user pass = do
+    Just hpass <- hashPasswordUsingPolicy slowerBcryptHashingPolicy pass
+    return $ user{userPass = hpass}
+
 userBuckets :: UserDetail -> [Bucket]
 userBuckets = M.keys . userCreds
 
@@ -51,13 +56,4 @@ addUser users name lvl pass mbuck mcreds = do
             return "ok"
     else return "bummer"
 
-quantifyUsers :: [(UserName, UserDetail)] -> Text
-quantifyUsers = quantify
-    where quantify [] = ""
-          quantify ((n, d):us) = T.unwords [ "user"
-                                           , n
-                                           , "with buckets"
-                                           , T.intercalate ", " (M.keys $ userCreds d)
-                                           , "\n"
-                                           , quantify us
-                                           ]
+
