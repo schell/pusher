@@ -50,7 +50,7 @@ uploadFile mngr creds buck ctype cenc acl mkey f = do
     try $ runResourceT $ pureAws cfg scfg mngr r
 
 updateTaskOutput :: TasksVar -> B.ByteString -> UniqueID -> IO ()
-updateTaskOutput tvar bs = atomically . modifyTVar' tvar . M.adjust (bs `B.append`)
+updateTaskOutput tvar bs = atomically . modifyTVar' tvar . M.adjust (bs `B.append` "\n" `B.append`)
 
 -- | Uploads a zip of a bunch of files and directories into their
 -- corresponding places on s3. Proxies files to uploadFile.
@@ -73,9 +73,13 @@ uploadZippedDir mngr tmp uid tvar creds buck acl key f = do
         -- List all the files in the zip
         fs <- readProcess "tar" ["tf", zname] []
         let fs'  = P.filter (not . ("/" `L.isSuffixOf`)) $ P.lines fs
-            fs'' = if ("./" `L.isPrefixOf` P.head fs')
-                     then P.map (P.drop 2) fs'
-                     else fs'
+            fs'' = P.map (\l -> if "./" `L.isPrefixOf` l then P.drop 2 l else l) fs'
+        updateTaskOutput tvar (B.pack $ P.unwords [ "Filtering directories."
+                                                  , show $ P.length $ P.lines fs
+                                                  , "files before,"
+                                                  , show $ P.length fs''
+                                                  , "files after."
+                                                  ]) uid
 
         -- Run through each file and upload it to s3 along with its mimetype,
         -- encoding and key. Assume that gzipped files are meant to be served
@@ -94,14 +98,13 @@ uploadZippedDir mngr tmp uid tvar creds buck acl key f = do
                                       nfile = ("file", finfo)
                                       k  = T.pack $ T.unpack key </> key'
                                       msg = P.unwords [ "(" ++ show i ++ "/" ++ show len ++ ")"
-                                                      , "Uploaded"
+                                                      , "Uploading"
                                                       , T.unpack k
-                                                      , "\n"
                                                       ]
                                   eIO <- uploadFile mngr creds buck (Just mime) menc acl (Just k) nfile
                                   let (msg', s) = case eIO of
-                                                      Left err -> (B.pack $ show err, 0)
-                                                      Right _  -> (B.pack msg, 1)
+                                                      Left err -> (B.pack $ "Error: " ++ show err, 0)
+                                                      Right st -> (B.pack $ msg ++ " " ++ show st, 1)
                                   updateTaskOutput tvar msg' uid
                                   return s
                 ExitFailure _ -> return 0
@@ -110,7 +113,7 @@ uploadZippedDir mngr tmp uid tvar creds buck acl key f = do
                             , show (successes :: Int)
                             , "of"
                             , show len
-                            , "files.\n"
+                            , "files."
                             ]
         updateTaskOutput tvar (B.pack msg) uid
 
