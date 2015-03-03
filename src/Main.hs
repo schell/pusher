@@ -32,28 +32,27 @@ main = do
     cwd <- getCurrentDirectory
 
     -- Get our port.
-    port  <- lookupDefault 3000 cfg "port"
+    prt  <- lookupDefault 3000 cfg "port"
     -- Get our startup users file from the config.
-    mUsersFile <- DC.lookup cfg "users-file"
+    mSaveFile <- DC.lookup cfg "save-file"
     -- Possibly get a TLS certificate and key.
     mSrvCrt <- DC.lookup cfg "server-crt"
     mSrvKey <- DC.lookup cfg "server-key"
     -- Create our user map.
-    users <- case mUsersFile of
-        Nothing -> return M.empty
+    (SaveState usrs cfds) <- case mSaveFile of
+        Nothing -> return $ SaveState M.empty M.empty
         Just f  -> do fe <- doesFileExist $ cwd </> f
                       if fe
                         then do s <- System.IO.readFile $ cwd </> f
-                                return $ (read s :: Users)
-                        else return M.empty
+                                return $ (read s :: SaveState)
+                        else return $ SaveState M.empty M.empty
 
     -- Create our "persistent" user/deploy list.
-    putStrLn "Starting up with super user: "
-    print users
-    usersVar <- atomically $ newTVar users
+    usersVar <- atomically $ newTVar usrs
     logVar   <- atomically $ newTVar $ Log []
     uidVar   <- atomically $ newTVar $ UniqueID 0
     tasksVar <- atomically $ newTVar $ M.empty
+    cfdsVar  <- atomically $ newTVar cfds
 
     -- Group both certs because if one is missing their point is lost.
     let mSK = do crt <- mSrvCrt
@@ -66,9 +65,9 @@ main = do
 
 
     -- Start up our good old scotty and give him some routes.
-    let r = flip runReaderT (Pusher logVar usersVar cfg uidVar tasksVar mngr)
+    let r = flip runReaderT (Pusher logVar usersVar cfdsVar cfg uidVar tasksVar mngr)
         f = do putStrLn "Running HTTP in the clear, SSL NOT enabled."
-               scottyT port r r routes
+               scottyT prt r r routes
         p c k = putStrLn $ unwords [ "SSL Certificate"
                                    , if c then "does" else "does not"
                                    , "exist. SSL Key"
@@ -81,5 +80,5 @@ main = do
                          keyExists <- doesFileExist k
                          if crtExists && keyExists
                          then do putStrLn "SSL Enabled."
-                                 scottyTTLS port k c r r routes
+                                 scottyTTLS prt k c r r routes
                          else p crtExists keyExists >> f

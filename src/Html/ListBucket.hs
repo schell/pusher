@@ -4,6 +4,7 @@ module Html.ListBucket where
 
 import Prelude as P
 import Aws.S3
+import Html.Url
 import Html.Common
 import Text.Blaze.Html5 as H
 import Control.Monad
@@ -12,7 +13,7 @@ import Text.Blaze.Html5.Attributes
 
 listBucketFormHtml :: [Bucket] -> Html
 listBucketFormHtml bs =
-    userContainer $ H.form ! method "POST" ! action "/list"
+    userContainer $ H.form ! method "POST" ! action (toValue UrlBucketList)
                            ! enctype "multipart/form-data" $ do
         legend "List a bucket:"
         H.div ! class_ "form-group" $ do

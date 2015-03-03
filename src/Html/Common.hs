@@ -2,6 +2,8 @@
 module Html.Common where
 
 import Prelude
+import Html.Url
+import Html.Bootstrap
 import Aws.S3
 import Control.Monad
 import Data.Monoid (mempty)
@@ -41,51 +43,48 @@ guestContainer f = headNavContentHtml
     loggedOutHeader
     f
 
+val :: Url -> AttributeValue
+val = toValue
+
 loggedInHeader :: Html
 loggedInHeader = nav ! class_ "navbar navbar-default" $
     H.div ! class_ "container-fluid" $ do
         H.div ! class_ "navbar-header" $
-            a ! class_ "navbar-brand" ! href "/" $
+            a ! class_ "navbar-brand" ! href (val UrlHome) $
                 i ! class_ "fa fa-home" $ mempty
-        H.ul ! class_ "nav navbar-nav" $ do
-            li $ a ! href "/upload" $ do
-                i ! class_ "fa fa-upload" $ mempty
-                " upload a file"
-            li $ a ! href "/upload-zip" $ do
-                i ! class_ "fa fa-file-archive-o" $ mempty
-                " upload a tarball"
-            li $ a ! href "/copy" $ do
-                i ! class_ "fa fa-file-o" $ mempty
-                " copy a file"
-            li $ a ! href "/copy-folder" $ do
-                i ! class_ "fa fa-files-o" $ mempty
-                " copy a folder"
-            li $ a ! href "/user-add-bucket" $ do
-                i ! class_ "fa fa-cloud" $ mempty
-                " add a bucket"
+        ul ! class_ "nav navbar-nav" $ do
+            liDropdown (faIcon "file" $ do
+                           void $ " file"
+                           H.span ! class_ "caret" $ mempty)
+                       (do liIcon (val UrlUploadFile) "upload" " upload a file"
+                           liIcon (val UrlUploadTarball) "file-archive-o" " upload a tarball"
+                           liIcon (val UrlCopyFile) "file-o" " copy a file"
+                           liIcon (val UrlCopyFolder) "files-o" " copy a folder")
+            liDropdown (faIcon "cloud" $ do
+                           void $ " bucket"
+                           H.span ! class_ "caret" $ mempty)
+                       (do liIcon (val UrlBucketList) "list-ol" " list a bucket"
+                           liIcon (val UrlBucketAdd) "plus" " add a bucket"
+                           liIcon (val UrlBucketLinkCF) "cloud" " link cloudfront")
+            liDropdown (faIcon "user" $ do
+                           void $ " user"
+                           H.span ! class_ "caret" $ mempty)
+                       (do liIcon (val UrlUserSettings) "cogs" " user settings"
+                           liIcon (val UrlUserPassword) "key" " update password"
+                           liIcon (val UrlUserAdd) "user-plus" " add user")
 
         H.ul ! class_ "nav navbar-nav navbar-right" $ do
-            li $ a ! href "/user/settings" $ do
-                i ! class_ "fa fa-cogs" $ mempty
-                " user settings"
-            li $ a ! href "/user" $ do
-                i ! class_ "fa fa-user-plus" $ mempty
-                " add user"
-            li $ a ! href "/log" $ do
-                i ! class_ "fa fa-file-text" $ mempty
-                " view log"
-            li $ a ! href "/logout" $ do
-                i ! class_ "fa fa-sign-out" $ mempty
-                " logout"
+            liIcon (val UrlLogView) "file-text" " view log"
+            liIcon (val UrlUserLogout) "sign-out" " logout"
 
 loggedOutHeader :: Html
 loggedOutHeader = nav ! class_ "navbar navbar-default" $
     H.div ! class_ "container-fluid" $ do
         H.div ! class_ "navbar-header" $
-            a ! class_ "navbar-brand" ! href "/" $
+            a ! class_ "navbar-brand" ! href (val UrlHome) $
                 i ! class_ "fa fa-home" $ mempty
         H.ul ! class_ "nav navbar-nav navbar-right" $ do
-            li $ a ! href "/login" $ do
+            li $ a ! href (val UrlUserLogin) $ do
                 i ! class_ "fa fa-sign-in" $ mempty
                 " login"
 

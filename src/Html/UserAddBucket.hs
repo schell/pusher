@@ -4,6 +4,7 @@ module Html.UserAddBucket where
 
 import Prelude
 import Html.Common
+import Html.Url
 import Text.Blaze.Html5
 import Data.Text (Text)
 import qualified Text.Blaze.Html5 as H
@@ -12,7 +13,7 @@ import qualified Text.Blaze.Html5.Attributes as A
 
 userAddBucketHtml :: Text -> Html
 userAddBucketHtml username =
-    userContainer $ H.form ! method "POST" ! action "/user-add-bucket" $ do
+    userContainer $ H.form ! method "POST" ! action (toValue UrlBucketAdd) $ do
         legend "Add another bucket credential"
         p ! class_ "help-block" $
             "You can add buckets for other users if your level is less than theirs or if you are the super user with level 0."

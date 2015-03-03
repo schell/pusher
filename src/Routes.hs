@@ -27,6 +27,7 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.Reader
 import Control.Monad.IO.Class (liftIO)
+import Data.String (fromString)
 import Data.Text as T
 import qualified Text.Blaze.Html as H
 import qualified Text.Blaze.Html5 as H
@@ -39,10 +40,10 @@ import qualified Data.Map.Strict as M
 
 routes :: ScottyP ()
 routes = do
-    get "/login" $ do
+    get UrlUserLogin $ do
         r <- defaultParam "r" "/"
         blaze $ loginHtml r
-    post "/login" $ do
+    post UrlUserLogin $ do
         name <- param "authname"
         pass <- param "authpass"
         withAuthdNamePass name pass $ \u -> do
@@ -50,42 +51,35 @@ routes = do
             r <- defaultParam "r" "/"
             redirect r
 
-    get "/logout" $ do
+    get UrlUserLogout $ do
         expireLoginCookie
         blaze logoutHtml
 
     -- Misc
-    WST.get "/log" $ withAuthdUser $ const $ do
+    WST.get (fromString $ show UrlLogView) $ withAuthdUser $ const $ do
         logVar  <- MT.lift $ asks pLogVar
         (Log lg) <- liftIO $ atomically $ readTVar logVar
         blaze $ logHtml lg
 
-    get "/" $ getHtmlContainer >>= \c -> blaze $ c "hello"
-
-    get "/auth-check-lvl" $ do
-        lvl <- param "lvl"
-        withAuthLvl lvl $ blaze $ userContainer "okay"
-
-    get "/auth-check-bucket" $ do
-        withDefaultCreds $ const $ blaze $ userContainer "okay"
+    get UrlHome $ getHtmlContainer >>= \c -> blaze $ c "hello"
 
     -- Users
-    get "/users" $ withAuthdUser $ const $ do
+    get UrlUsers $ withAuthdUser $ const $ do
         usersVar <- MT.lift $ asks pUsersVar
         users' <- liftIO $ atomically $ readTVar usersVar
         blaze $ usersHtml users'
 
-    get "/users.txt" $ do
+    get UrlUsersFile $ do
         withAuthLvl 0 $ do
             usersVar <- MT.lift $ asks pUsersVar
             (users' :: Users) <- liftIO $ atomically $ readTVar usersVar
             text $ LT.pack $ show users'
 
-    get "/user" $ withAuthdUser $ const $ blaze newUserHtml
-    post "/user" postUserRoute
+    get UrlUserAdd $ withAuthdUser $ const $ blaze newUserHtml
+    post UrlUserAdd postUserRoute
 
-    get "/user/password" $ withAuthdUser $ const $ blaze passwordHtml
-    post "/user/password" $ withAuthdUser $ \u -> do
+    get UrlUserPassword $ withAuthdUser $ const $ blaze passwordHtml
+    post UrlUserPassword $ withAuthdUser $ \u -> do
         pass <- param "pass"
         chk  <- param "passCheck"
         if pass /= chk
@@ -96,9 +90,13 @@ routes = do
                     Left err -> blaze $ userContainer $ H.toHtml err
                     Right _  -> blaze $ userContainer "Password updated."
 
-    get "/user-add-bucket" $ withAuthdUser $ \UserDetail{..} ->
+    get UrlUserSettings $ withAuthdUser $ \u ->
+        blaze $ userSettingsHtml u
+
+    -- Buckets
+    get UrlBucketAdd $ withAuthdUser $ \UserDetail{..} ->
         blaze $ userAddBucketHtml userName
-    post "/user-add-bucket" $ withAuthdUser $ const $ do
+    post UrlBucketAdd $ withAuthdUser $ const $ do
         username <- param "username"
         bucket   <- param "bucket" :: ActionP Bucket
         key      <- param "key"
@@ -112,15 +110,30 @@ routes = do
                               u' = addCreds u creds
                           liftIO $ atomically $
                               modifyTVar' uVar $ M.insert username u'
-                          flushUsersToDisk
+                          saveDataToDisk
                           blaze $ userContainer "Okay, credentials added."
 
-    get "/user/settings" $ withAuthdUser $ \u ->
-        blaze $ userSettingsHtml u
+    get UrlBucketLinkCF $ withAuthdUser $ \UserDetail{..} -> do
+        cfdsVar <- MT.lift $ asks pCFDistros
+        cfds    <- liftIO $ atomically $ readTVar cfdsVar
+        let creds  = "" <$ userCreds
+            cfds' = M.union cfds creds
+        blaze $ userContainer $ cloudfrontHtml cfds'
+    post UrlBucketLinkCF $ withAuthdUser $ const $ do
+        ps      <- params
+        cfdsVar <- MT.lift $ asks pCFDistros
+        cfds    <- liftIO $ atomically $ readTVar cfdsVar
+        let cfds' = LT.toStrict <$> (M.mapKeys LT.toStrict $ M.fromList ps)
+            cmp a b = if a == b then Nothing else Just $ T.unwords [a,"->",b]
+            diff = M.differenceWith cmp cfds cfds'
+        liftIO $ atomically $ modifyTVar' cfdsVar $ const $ cfds' `M.union` cfds
+        saveDataToDisk
+        blaze $ userContainer $ do
+            H.p "Updated cloudfront associations."
+            H.pre $ H.toHtml $ show diff
 
-    -- Querying
-    get "/list" $ withAuthdUser $ \u -> blaze $ listBucketFormHtml $ userBuckets u
-    post "/list" $ withAuthdUser $ \(UserDetail{..}) -> do
+    get UrlBucketList $ withAuthdUser $ \u -> blaze $ listBucketFormHtml $ userBuckets u
+    post UrlBucketList $ withAuthdUser $ \(UserDetail{..}) -> do
         bucket  <- param "bucket"
         mprefix <- nothingIfNull <$> optionalParam "prefix"
         mdelim  <- nothingIfNull <$> optionalParam "delimiter"
@@ -130,7 +143,7 @@ routes = do
             Just c  -> do infos <- liftIO $ listDirectory c bucket mprefix mdelim
                           blaze $ listBucketHtml $ P.map objectKey infos
 
-    get "/task/:task" $ withAuthdUser $ const $ do
+    get UrlTask $ withAuthdUser $ const $ do
         task  <- param "task"
         tvar  <- MT.lift $ asks pTasks
         tasks <- liftIO $ atomically $ readTVar tvar
@@ -139,17 +152,17 @@ routes = do
             Just s  -> blaze $ taskHtml s
 
     -- Uploading new files
-    get "/upload" $ withAuthdUser $ \u -> blaze $ uploadHtml $ userBuckets u
-    post "/upload" postUploadRoute
+    get UrlUploadFile $ withAuthdUser $ \u -> blaze $ uploadHtml $ userBuckets u
+    post UrlUploadFile postUploadRoute
 
     -- Uploading a zip of an entire directory
-    get "/upload-zip" $ withAuthdUser $ \u ->
+    get UrlUploadTarball $ withAuthdUser $ \u ->
         blaze $ uploadZipHtml $ userBuckets u
-    post "/upload-zip" postUploadZipRoute
+    post UrlUploadTarball postUploadZipRoute
 
     -- Copying existing files
-    get "/copy" $ withAuthdUser $ \u -> blaze $ copyHtml $ userBuckets u
-    post "/copy" $ withAuthdUser $ \(UserDetail{..}) -> do
+    get UrlCopyFile $ withAuthdUser $ \u -> blaze $ copyHtml $ userBuckets u
+    post UrlCopyFile $ withAuthdUser $ \(UserDetail{..}) -> do
         fbucket   <- param "bucket"
         toBucket <- optionalParam "toBucket"
         from     <- param "from"
@@ -163,8 +176,8 @@ routes = do
             Just c  -> do _ <- liftIO $ uncurry copyFile c
                           blaze $ userContainer "okay"
 
-    get "/copy-folder" $ withAuthdUser $ \u -> blaze $ copyFolderHtml $ userBuckets u
-    post "/copy-folder" $ withAuthdUser $ \(UserDetail{..}) -> do
+    get UrlCopyFolder $ withAuthdUser $ \u -> blaze $ copyFolderHtml $ userBuckets u
+    post UrlCopyFolder $ withAuthdUser $ \(UserDetail{..}) -> do
         fbucket  <- param "bucket"
         toBucket <- optionalParam "toBucket"
         from     <- param "from"
@@ -212,7 +225,7 @@ postUserRoute = do
                        key  <- nothingIfNull mkey
                        secr <- nothingIfNull msecr
                        return $ AwsCreds key secr
-               flushUsersToDisk
+               saveDataToDisk
                html $ LT.fromStrict msg
       else do status unauthorized401
               blaze $ userContainer "unauthorized 401"
@@ -246,6 +259,8 @@ postUploadZipRoute = withAuthdUser $ \UserDetail{userCreds=creds} -> do
                      tmp  <- getTempDir
                      tvar <- MT.lift $ asks pTasks
                      mngr <- MT.lift $ asks pMngr
-                     liftIO $ uploadZippedDir mngr tmp uid tvar c buck acl key f
-                     blaze $ taskLinkHtml uid
+                     mcf  <- getCloudfrontDistroForBucket buck
+                     let op = OpUploadTarball mngr tmp uid tvar c (buck, mcf) acl key f
+                     liftIO $ uploadZippedDir op
+                     blaze $ userContainer $ taskLinkHtml uid
 

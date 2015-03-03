@@ -4,6 +4,7 @@ module Html.Copy where
 import Prelude
 import Aws.S3
 import Html.Common
+import Html.Url
 import Text.Blaze.Html5
 import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5.Attributes
@@ -11,7 +12,7 @@ import qualified Text.Blaze.Html5.Attributes as A
 
 copyHtml :: [Bucket] -> Html
 copyHtml bs =
-    userContainer $ H.form ! method "POST" ! action "/copy"
+    userContainer $ H.form ! method "POST" ! action (toValue UrlCopyFile)
                                     ! enctype "multipart/form-data" $ do
         legend "From:"
         H.div ! class_ "form-group" $ do

@@ -2,15 +2,15 @@
 module Html.Login where
 
 import Prelude
+import Html.Url
 import Html.Common
 import Text.Blaze.Html5
-import Data.String
 import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5.Attributes
 import qualified Text.Blaze.Html5.Attributes as A
 
 loginHtml :: String -> Html
-loginHtml r = let login = fromString ("/login?r=" ++ r) in
+loginHtml r = let login = toValue $ Uri UrlUserLogin [("r", r)] in
     guestContainer $ H.form ! method "POST" ! action login $ do
         legend "Login:"
         H.div ! class_ "form-group" $ do

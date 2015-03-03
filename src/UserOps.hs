@@ -23,27 +23,27 @@ addCreds (UserDetail lvl name pass creds) creds' =
     UserDetail lvl name pass $ M.union creds' creds
 
 getAwsCreds :: UserName -> ByteString -> Bucket -> Users -> Maybe AwsCreds
-getAwsCreds name pass buck users =
-    if getUserIsValid name pass users
-    then do detail <- M.lookup name users
+getAwsCreds name pass buck usrs =
+    if getUserIsValid name pass usrs
+    then do detail <- M.lookup name usrs
             M.lookup buck $ userCreds detail
     else Nothing
 
 getUserIsValid :: UserName -> ByteString -> Users -> Bool
-getUserIsValid name pass users =
-    let mBool = do detail <- M.lookup name users
+getUserIsValid name pass usrs =
+    let mBool = do detail <- M.lookup name usrs
                    return $ validatePassword (userPass detail) pass
     in case mBool of
         Nothing -> False
         Just b  -> b
 
 getUserLevel :: UserName -> M.Map UserName UserDetail -> Maybe Int
-getUserLevel name users = userLevel <$> M.lookup name users
+getUserLevel name usrs = userLevel <$> M.lookup name usrs
 
 addUser :: UsersVar -> UserName -> Int -> ByteString -> Maybe Bucket -> Maybe AwsCreds -> IO Text
-addUser users name lvl pass mbuck mcreds = do
+addUser usrs name lvl pass mbuck mcreds = do
     Just hpass <- hashPasswordUsingPolicy slowerBcryptHashingPolicy pass
-    mUser <- atomically $ M.lookup name <$> readTVar users
+    mUser <- atomically $ M.lookup name <$> readTVar usrs
     let detail = case mUser of
                      Nothing -> UserDetail lvl name hpass M.empty
                      Just d  -> d
@@ -52,7 +52,7 @@ addUser users name lvl pass mbuck mcreds = do
                      return $ addCreds detail $ M.fromList [(buck, creds)]
         detail' = maybe detail id mdetail
     if validatePassword (userPass detail) pass
-    then do atomically $ modifyTVar' users $ M.insert name detail'
+    then do atomically $ modifyTVar' usrs $ M.insert name detail'
             return "ok"
     else return "bummer"
 

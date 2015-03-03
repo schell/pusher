@@ -64,13 +64,18 @@ flushLogToDisk = do
     liftIO $ do Data.Text.IO.writeFile fn $ T.pack $ show lg
                 atomically $ modifyTVar' var (const $ Log [])
 
-flushUsersToDisk :: ActionP ()
-flushUsersToDisk = do
+saveDataToDisk :: ActionP ()
+saveDataToDisk = do
     cfg       <- MT.lift $ asks pConfig
-    usersFile <- liftIO $ DC.lookupDefault "users.txt" cfg "users-file"
+    saveFile  <- liftIO $ DC.lookupDefault "save.txt" cfg "save-file"
     usersVar  <- MT.lift $ asks pUsersVar
     users     <- liftIO $ atomically $ readTVar usersVar
-    liftIO $ do Data.Text.IO.writeFile usersFile $ T.pack $ show users
+    cfdsVar   <- MT.lift $ asks pCFDistros
+    cfds      <- liftIO $ atomically $ readTVar cfdsVar
+
+    let save = SaveState users cfds
+
+    liftIO $ do Data.Text.IO.writeFile saveFile $ T.pack $ show save
 
 log_ :: Text -> ActionP ()
 log_ path = do
@@ -88,11 +93,11 @@ log_ path = do
     when (P.length lg >= 1000) flushLogToDisk
     liftIO $ atomically $ modifyTVar' var $ \(Log lg') -> Log (entry:lg')
 
-get :: String -> ActionP () -> ScottyP ()
-get str f = WST.get (fromString str) $ log_ (T.pack str) >> f
+get :: Url -> ActionP () -> ScottyP ()
+get url f = WST.get (fromString $ show url) $ log_ (T.pack $ show url) >> f
 
-post :: String -> ActionP () -> ScottyP ()
-post str f = WST.post (fromString str) $ log_ (T.pack str) >> f
+post :: Url -> ActionP () -> ScottyP ()
+post url f = WST.post (fromString $ show url) $ log_ (T.pack $ show url) >> f
 
 optionalParam :: Parsable a
               => LT.Text -> ActionP (Maybe a)
@@ -174,10 +179,17 @@ saveUser u@UserDetail{..} = do
     case M.lookup userName us of
         Nothing -> return $ Left $ "Could not find user " ++ T.unpack userName
         Just _  -> do liftIO $ atomically $ modifyTVar' uv $ M.insert userName u
-                      flushUsersToDisk
+                      saveDataToDisk
                       return $ Right ()
 
-
+getCloudfrontDistroForBucket :: Bucket -> ActionP (Maybe Text)
+getCloudfrontDistroForBucket b = do
+    cfdsVar <- MT.lift $ asks pCFDistros
+    cfds <- liftIO $ atomically $ readTVar cfdsVar
+    case M.lookup b cfds of
+        Nothing -> return Nothing
+        Just "" -> return Nothing
+        Just a  -> return $ Just a
 
 getHtmlContainer :: ActionP (H.Html -> H.Html)
 getHtmlContainer = do

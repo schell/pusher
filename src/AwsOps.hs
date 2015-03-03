@@ -10,6 +10,7 @@ import Web.Scotty (File)
 import Aws
 import Aws.S3
 import Data.Text as T
+import Data.Time.Clock
 import Control.Monad
 import Control.Monad.Trans.Resource
 import Control.Concurrent.STM
@@ -49,16 +50,16 @@ uploadFile mngr creds buck ctype cenc acl mkey f = do
                                         }
     try $ runResourceT $ pureAws cfg scfg mngr r
 
-updateTaskOutput :: TasksVar -> B.ByteString -> UniqueID -> IO ()
-updateTaskOutput tvar bs = atomically . modifyTVar' tvar . M.adjust (bs':)
-    where bs' = if "\n" `B.isSuffixOf` bs then bs else bs `B.append` "\n"
+updateTaskOutput :: TasksVar -> TaskUpdate -> UniqueID -> IO ()
+updateTaskOutput tvar t = atomically . modifyTVar' tvar . M.adjust f
+    where f (PendingTask ts) = PendingTask $ t:ts
+          f x = x
 
 -- | Uploads a zip of a bunch of files and directories into their
 -- corresponding places on s3. Proxies files to uploadFile.
-uploadZippedDir :: Manager -> FilePath -> UniqueID -> TasksVar -> AwsCreds
-                -> Bucket -> CannedAcl -> Text -> File -> IO ()
-uploadZippedDir mngr tmp uid tvar creds buck acl key f = do
-    atomically $ modifyTVar' tvar $ M.insert uid ["Starting expansion and uploads..."]
+uploadZippedDir :: OpUploadTarball -> IO ()
+uploadZippedDir (OpUploadTarball mngr tmp uid tvar creds (buck, mcf) acl key f) = do
+    atomically $ modifyTVar' tvar $ M.insert uid $ PendingTask []
     void $ forkIO $ do
         -- Create a temp dir to hold our zip
         let zbin  = NWP.fileContent $ snd f
@@ -75,19 +76,11 @@ uploadZippedDir mngr tmp uid tvar creds buck acl key f = do
         fs <- readProcess "tar" ["tf", zname] []
         let fs'  = P.filter (not . ("/" `L.isSuffixOf`)) $ P.lines fs
             fs'' = P.map (\l -> if "./" `L.isPrefixOf` l then P.drop 2 l else l) fs'
-        updateTaskOutput tvar (B.pack $ P.unwords [ "Filtering directories."
-                                                  , show $ P.length $ P.lines fs
-                                                  , "files before,"
-                                                  , show $ P.length fs''
-                                                  , "files after."
-                                                  ]) uid
 
         -- Run through each file and upload it to s3 along with its mimetype,
         -- encoding and key. Assume that gzipped files are meant to be served
         -- as gzipped encoding.
-        let len = P.length fs''
-            is = [0..] :: [Int]
-        success <- forM (P.zip3 is fs'' fs') $ \(i, file, tfile) -> do
+        updates <- forM (P.zip fs'' fs') $ \(file, tfile) -> do
             (code, stdout, stderr) <- readProcessWithExitCode "tar" ["xzf", zname, "-C", zextr, tfile] []
             case code of
                 ExitSuccess -> do lbsf <- LBS.readFile $ zextr </> file
@@ -98,30 +91,18 @@ uploadZippedDir mngr tmp uid tvar creds buck acl key f = do
                                       finfo = NWP.FileInfo "file" mime lbsf
                                       nfile = ("file", finfo)
                                       k  = T.pack $ T.unpack key </> key'
-                                      msg = P.unwords [ "(" ++ show i ++ "/" ++ show len ++ ")"
-                                                      , "Uploading"
-                                                      , T.unpack k
-                                                      ]
                                   eIO <- uploadFile mngr creds buck (Just mime) menc acl (Just k) nfile
-                                  let (msg', s) = case eIO of
-                                                      Left err -> (B.pack $ "Error: " ++ show err, 0)
-                                                      Right st -> (B.pack $ msg ++ " " ++ show st, 1)
-                                  updateTaskOutput tvar msg' uid
-                                  return s
-                ExitFailure e -> do let err = P.unlines [ "Error(" ++ show e ++ "):"
-                                                        , "  StdOut: " ++ stdout
-                                                        , "  StdErr: " ++ stderr
-                                                        ]
-                                    updateTaskOutput tvar (B.pack err) uid
-                                    return 0
-        let successes = sum success
-            msg = P.unwords [ "Complete. Uploaded"
-                            , show (successes :: Int)
-                            , "of"
-                            , show len
-                            , "files."
-                            ]
-        updateTaskOutput tvar (B.pack msg) uid
+                                  let tu = case eIO of
+                                               Left err -> TaskError 0 "" $ show err
+                                               Right _  -> TaskSuccess $ T.unpack k
+                                  updateTaskOutput tvar tu uid
+                                  return tu
+                ExitFailure e -> do let ud = TaskError e stdout stderr
+                                    updateTaskOutput tvar ud uid
+                                    return ud
+        t <- getCurrentTime
+        let task = CompletedTask updates (buck, mcf) t
+        atomically $ modifyTVar' tvar $ M.insert uid task
 
 -- | Copies a file from anywhere in S3 to anywhere in S3.
 copyFile :: FileAccess -> FileAccess -> IO Text

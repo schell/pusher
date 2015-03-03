@@ -16,4 +16,4 @@ cabal.sandbox.config
 *.csr
 *.pem
 *.aes
-users.txt
+save.txt

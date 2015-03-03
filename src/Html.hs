@@ -7,6 +7,7 @@ module Html (
 
 import Web.Scotty.Trans
 import Html.Common as H
+import Html.Url as H
 import Html.NewUser as H
 import Html.UserAddBucket as H
 import Html.Upload as H
@@ -21,6 +22,7 @@ import Html.Users as H
 import Html.UserSettings as H
 import Html.Task as H
 import Html.Password as H
+import Html.Cloudfront as H
 import Text.Blaze.Html5
 import qualified Text.Blaze.Html.Renderer.Utf8 as Utf8
 import qualified Text.Blaze.Html.Renderer.Pretty as Pretty

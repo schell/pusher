@@ -4,6 +4,7 @@ module Html.Password where
 
 import Prelude
 import Html.Common
+import Html.Url
 import Text.Blaze.Html5
 import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5.Attributes
@@ -11,7 +12,7 @@ import qualified Text.Blaze.Html5.Attributes as A
 
 passwordHtml :: Html
 passwordHtml =
-    userContainer $ H.form ! method "POST" ! action "/user/password" $ do
+    userContainer $ H.form ! method "POST" ! action (toValue UrlUserPassword) $ do
         legend "New password"
         H.div ! class_ "form-group" $ do
             H.label ! for "pass" $ "Password:"

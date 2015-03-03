@@ -4,6 +4,7 @@ module Html.Upload where
 import Prelude
 import Aws.S3
 import Html.Common
+import Html.Url
 import Text.Blaze.Html5
 import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5.Attributes
@@ -11,7 +12,7 @@ import qualified Text.Blaze.Html5.Attributes as A
 
 uploadHtml :: [Bucket] -> Html
 uploadHtml bs =
-    userContainer $ H.form ! method "POST" ! action "/upload"
+    userContainer $ H.form ! method "POST" ! action (toValue UrlUploadFile)
                                     ! enctype "multipart/form-data" $ do
         legend "Upload a file:"
         H.div ! class_ "form-group" $ do

@@ -4,6 +4,7 @@ module Html.NewUser where
 
 import Prelude
 import Html.Common
+import Html.Url
 import Text.Blaze.Html5
 import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5.Attributes
@@ -11,7 +12,7 @@ import qualified Text.Blaze.Html5.Attributes as A
 
 newUserHtml :: Html
 newUserHtml =
-    userContainer $ H.form ! method "POST" ! action "/user" $ do
+    userContainer $ H.form ! method "POST" ! action (toValue UrlUserAdd) $ do
         legend "New/Updated User Details:"
         H.div ! class_ "form-group" $ do
             H.label ! for "name" $ "New user's name"

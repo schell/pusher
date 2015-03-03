@@ -4,13 +4,14 @@ module Html.UploadZip where
 import Prelude
 import Aws.S3
 import Html.Common
+import Html.Url
 import Text.Blaze.Html5
 import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5.Attributes
 import qualified Text.Blaze.Html5.Attributes as A
 
 uploadZipHtml :: [Bucket] -> Html
-uploadZipHtml bs = userContainer $ H.form ! method "POST" ! action "/upload-zip"
+uploadZipHtml bs = userContainer $ H.form ! method "POST" ! action (toValue UrlUploadTarball)
                                           ! enctype "multipart/form-data" $ do
     legend "Upload a tar.gz archive:"
     p ! class_ "help-block" $

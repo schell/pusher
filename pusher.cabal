@@ -63,6 +63,7 @@ executable pusher
                        scotty-tls,
                        blaze-html,
                        blaze-builder,
+                       blaze-markup,
                        stm,
                        bcrypt,
                        bytestring,

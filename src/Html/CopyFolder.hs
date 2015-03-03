@@ -2,6 +2,7 @@
 module Html.CopyFolder where
 
 import Prelude
+import Html.Url
 import Html.Common
 import Aws.S3
 import Text.Blaze.Html5
@@ -11,7 +12,7 @@ import qualified Text.Blaze.Html5.Attributes as A
 
 copyFolderHtml :: [Bucket] -> Html
 copyFolderHtml bs =
-    userContainer $ H.form ! method "POST" ! action "/copy-folder"
+    userContainer $ H.form ! method "POST" ! action (toValue UrlCopyFolder)
                                     ! enctype "multipart/form-data" $ do
         p ! class_ "help-block" $
             "This copies the contents of frombucket/fromkey/ to tobucket/tokey/"
