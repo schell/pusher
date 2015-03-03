@@ -41,7 +41,7 @@ instance ToMarkup Task where
         H.pre $ forM_ tus toHtml
     toMarkup (PendingTask tus) = H.div $ do
         H.p $ "This task is currently pending. Refresh for updates."
-        H.div $ forM_ tus toHtml
+        H.pre $ forM_ tus toHtml
 
 instance ToMarkup TaskUpdate where
     toMarkup (TaskError e stdin stdout) = dl ! class_ "dl-horizontal" $ do
@@ -51,5 +51,5 @@ instance ToMarkup TaskUpdate where
         dt $ toHtml stdin
         dd "stdout"
         dt $ toHtml stdout
-    toMarkup (TaskSuccess str) = p $ toHtml str
+    toMarkup (TaskSuccess str) = toHtml $ str ++ "\n"
 
