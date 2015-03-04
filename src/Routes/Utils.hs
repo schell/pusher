@@ -161,8 +161,8 @@ getUser = do
     mcook <- readUserCookie
     case mcook of
         Just (UserCookie u _) -> return $ Just u
-        Nothing -> do mname <- optionalParam "name"
-                      mpass <- optionalParam "pass"
+        Nothing -> do mname <- optionalParam "authname"
+                      mpass <- optionalParam "authpass"
                       usVar <- MT.lift $ asks pUsersVar
                       users <- liftIO $ atomically $ readTVar usVar
                       let op = do name <- mname
