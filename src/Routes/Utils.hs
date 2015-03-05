@@ -55,6 +55,27 @@ getTasksVar = MT.lift $ asks pTasks
 getManager :: ActionP Manager
 getManager = MT.lift $ asks pMngr
 
+getUsers :: ActionP Users
+getUsers = do
+    uvar <- MT.lift $ asks pUsersVar
+    liftIO $ atomically $ readTVar uvar
+
+getCredsFor :: Text -> B.ByteString -> Bucket -> ActionP (Maybe AwsCreds)
+getCredsFor name pass bucket = do
+    users <- MT.lift $ asks pUsersVar
+    liftIO $ atomically $ (getAwsCreds name pass bucket) <$> readTVar users
+
+findUser :: UserName -> ActionP (Maybe UserDetail)
+findUser name = do
+    muser <- getUser
+    users <- getUsers
+    let op = do thatUser <- M.lookup name users
+                thisUser <- muser
+                if userLevel thatUser > userLevel thisUser || userName thatUser == name
+                then return thatUser
+                else fail ""
+    return op
+
 flushLogToDisk :: ActionP ()
 flushLogToDisk = do
     utc  <- liftIO getCurrentTime
@@ -76,8 +97,7 @@ saveDataToDisk :: ActionP ()
 saveDataToDisk = do
     cfg       <- MT.lift $ asks pConfig
     saveFile  <- liftIO $ DC.lookupDefault "save.txt" cfg "save-file"
-    usersVar  <- MT.lift $ asks pUsersVar
-    users     <- liftIO $ atomically $ readTVar usersVar
+    users     <- getUsers
     cfdsVar   <- MT.lift $ asks pCFDistros
     cfds      <- liftIO $ atomically $ readTVar cfdsVar
 
@@ -121,17 +141,16 @@ defaultParam x def = do
 
 redirectToLogin :: ActionP ()
 redirectToLogin = do
-    path <- T.unpack . T.intercalate "/" . pathInfo <$> request
+    path <- T.unpack . T.append "/" . T.intercalate "/" . pathInfo <$> request
     redirect $ LT.pack $ show $ Uri UrlUserLogin [("r", path)]
 
 withAuthdNamePass :: UserName -> B.ByteString -> (UserDetail -> ActionP ()) -> ActionP ()
 withAuthdNamePass authname authpass f = do
-    usersVar <- MT.lift $ asks pUsersVar
-    users'   <- liftIO $ atomically $ readTVar usersVar
-    let authd = getUserIsValid authname authpass users'
+    users <- getUsers
+    let authd = getUserIsValid authname authpass users
     if not authd
     then redirectToLogin
-    else case M.lookup authname users' of
+    else case M.lookup authname users of
              Nothing -> redirectToLogin
              Just u  -> writeLoginCookie u >> f u
 
@@ -148,44 +167,24 @@ withAuthLvl lvl f = withAuthdUser $ \UserDetail{..} -> do
       else do status unauthorized401
               blaze $ guestContainer $ H.div "unauthorized 401"
 
-getCredsFor :: Text -> B.ByteString -> Bucket -> ActionP (Maybe AwsCreds)
-getCredsFor name pass bucket = do
-    users <- MT.lift $ asks pUsersVar
-    liftIO $ atomically $ (getAwsCreds name pass bucket) <$> readTVar users
 
-findUser :: UserName -> ActionP (Maybe UserDetail)
-findUser name = do
-    muser <- getUser
-    uVar  <- MT.lift $ asks pUsersVar
-    users <- liftIO $ atomically $ readTVar uVar
-    let op = do thatUser <- M.lookup name users
-                thisUser <- muser
-                if userLevel thatUser > userLevel thisUser || userName thatUser == name
-                then return thatUser
-                else fail ""
-    return op
 
 getUser :: ActionP (Maybe UserDetail)
 getUser = do
     mcook <- readUserCookie
+    users <- getUsers
+
     case mcook of
-        Just (UserCookie UserDetail{..} _) -> f userName userPass
+        Just (UserCookie UserDetail{..} _) -> return $ M.lookup userName users
+
         Nothing -> do mname <- optionalParam "authname"
                       mpass <- optionalParam "authpass"
-                      let mop = do name <- mname
-                                   pass <- mpass
-                                   return $ f name pass
-                      case mop of
+                      let mnp = (,) <$> mname <*> mpass
+                      case mnp of
                           Nothing -> return Nothing
-                          Just op -> op
-
-    where f n p = do usVar <- MT.lift $ asks pUsersVar
-                     users <- liftIO $ atomically $ readTVar usVar
-
-                     return $ if getUserIsValid n p users
-                              then M.lookup n users
-                              else fail ""
-
+                          Just (n,p) -> return $ if getUserIsValid n p users
+                                                 then M.lookup n users
+                                                 else fail ""
 
 saveUser :: UserDetail -> ActionP (Either String ())
 saveUser u@UserDetail{..} = do

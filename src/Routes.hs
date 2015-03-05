@@ -40,6 +40,7 @@ import qualified Data.Map.Strict as M
 
 routes :: ScottyP ()
 routes = do
+
     get UrlUserLogin $ do
         r <- defaultParam "r" "/"
         blaze $ loginHtml r
