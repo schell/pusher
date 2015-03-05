@@ -111,9 +111,8 @@ log_ path = do
     ps  <- params
     musr <- getUser
     let ps' = P.map nullpass ps
-        nullpass ("pass",_) = ("pass", "***")
-        nullpass ("authpass",_) = ("authpass", "***")
-        nullpass p = p
+        nullpass (k,v) = if k `elem` hides then (k,"***") else (k, v)
+        hides = ["pass","authpass","key","secret"]
         usr = maybe ("guest") userName musr
         entry = LogEntry usr utc ps' path
     var <- MT.lift $ asks pLogVar
