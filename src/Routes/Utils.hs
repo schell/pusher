@@ -19,6 +19,7 @@ import System.FilePath
 import System.Directory (getCurrentDirectory, getTemporaryDirectory)
 import Web.Scotty.Trans hiding (get, post)
 import Network.HTTP.Types.Status
+import Network.HTTP.Client
 import Network.Wai
 import Control.Concurrent.STM
 import Control.Applicative
@@ -30,6 +31,7 @@ import Data.Time.Clock
 import Data.Configurator as DC
 import Data.Text as T
 import Data.Text.IO (writeFile)
+--import Text.Blaze
 import qualified Text.Blaze.Html5 as H
 import qualified Web.Scotty.Trans as WST
 import qualified Control.Monad.Morph as MT
@@ -40,12 +42,18 @@ import qualified Data.Map.Strict as M
 --------------------------------------------------------------------------------
 -- Route helpers
 --------------------------------------------------------------------------------
-newUniqueID :: ActionP UniqueID
-newUniqueID = do
+newUniqueId :: ActionP UniqueId
+newUniqueId = do
     uidVar <- MT.lift $ asks pNextID
     uid <- liftIO $ atomically $ readTVar uidVar
     liftIO $ atomically $ modifyTVar' uidVar succ
     return uid
+
+getTasksVar :: ActionP TasksVar
+getTasksVar = MT.lift $ asks pTasks
+
+getManager :: ActionP Manager
+getManager = MT.lift $ asks pMngr
 
 flushLogToDisk :: ActionP ()
 flushLogToDisk = do
@@ -125,13 +133,14 @@ withAuthdNamePass authname authpass f = do
     then redirectToLogin
     else case M.lookup authname users' of
              Nothing -> redirectToLogin
-             Just u  -> f u
+             Just u  -> writeLoginCookie u >> f u
 
 withAuthdUser :: (UserDetail -> ActionP ()) -> ActionP ()
 withAuthdUser f = do
     mu <- getUser
-    maybe unauthd f mu
-        where unauthd = redirectToLogin
+    case mu of
+        Nothing -> redirectToLogin
+        Just u  -> writeLoginCookie u >> f u
 
 withAuthLvl :: Int -> ActionP () -> ActionP ()
 withAuthLvl lvl f = withAuthdUser $ \UserDetail{..} -> do
@@ -160,17 +169,23 @@ getUser :: ActionP (Maybe UserDetail)
 getUser = do
     mcook <- readUserCookie
     case mcook of
-        Just (UserCookie u _) -> return $ Just u
+        Just (UserCookie UserDetail{..} _) -> f userName userPass
         Nothing -> do mname <- optionalParam "authname"
                       mpass <- optionalParam "authpass"
-                      usVar <- MT.lift $ asks pUsersVar
-                      users <- liftIO $ atomically $ readTVar usVar
-                      let op = do name <- mname
-                                  pass <- mpass
-                                  if getUserIsValid name pass users
-                                  then M.lookup name users
-                                  else fail ""
-                      return op
+                      let mop = do name <- mname
+                                   pass <- mpass
+                                   return $ f name pass
+                      case mop of
+                          Nothing -> return Nothing
+                          Just op -> op
+
+    where f n p = do usVar <- MT.lift $ asks pUsersVar
+                     users <- liftIO $ atomically $ readTVar usVar
+
+                     return $ if getUserIsValid n p users
+                              then M.lookup n users
+                              else fail ""
+
 
 saveUser :: UserDetail -> ActionP (Either String ())
 saveUser u@UserDetail{..} = do
@@ -250,4 +265,7 @@ getTempDir = do
                        lookupDefault tmp cfg "tmp-dir"
     return tmp
 
-
+showS3Error :: S3Error -> ActionP ()
+showS3Error err = do
+    status status500
+    blaze $ userContainer $ H.toHtml err

@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Html.Common where
 
 import Prelude
@@ -10,6 +11,11 @@ import Data.Monoid (mempty)
 import Text.Blaze.Html5
 import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5.Attributes as A
+
+instance ToMarkup S3Error where
+    toMarkup err = H.div ! class_ "row" $ do
+        H.h3 "S3 Error"
+        H.pre $ H.toHtml $ show err
 
 headNavContentHtml :: Html -> Html -> Html -> Html
 headNavContentHtml h n f =

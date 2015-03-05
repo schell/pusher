@@ -14,7 +14,7 @@ import Text.Blaze
 import Text.Blaze.Html5 as H
 import Text.Blaze.Html5.Attributes
 
-taskLinkHtml :: UniqueID -> Html
+taskLinkHtml :: UniqueId -> Html
 taskLinkHtml uid = p $ do
     void $ "The task is running and can be checked at "
     a ! href (toValue (Uri UrlTask [("task", show uid)])) $
@@ -38,6 +38,9 @@ instance ToMarkup Task where
                                   ]
                  br
                  maybe (return ()) cfUrl mcf
+        H.pre $ forM_ tus toHtml
+    toMarkup (FailedTask tus utc) = H.div $ do
+        H.p $ toHtml $ "This task failed at " ++ show utc
         H.pre $ forM_ tus toHtml
     toMarkup (PendingTask tus) = H.div $ do
         H.p $ "This task is currently pending. Refresh for updates."

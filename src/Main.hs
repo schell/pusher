@@ -50,7 +50,7 @@ main = do
     -- Create our "persistent" user/deploy list.
     usersVar <- atomically $ newTVar usrs
     logVar   <- atomically $ newTVar $ Log []
-    uidVar   <- atomically $ newTVar $ UniqueID 0
+    uidVar   <- atomically $ newTVar $ UniqueId 0
     tasksVar <- atomically $ newTVar $ M.empty
     cfdsVar  <- atomically $ newTVar cfds
 

@@ -16,7 +16,7 @@ import Types
 import Html
 import UserOps
 import AwsOps
-import Aws.S3.Core
+import Aws.S3
 import System.Directory (doesFileExist)
 import Web.Scotty.Trans hiding (get, post)
 import Network.HTTP.Types.Status
@@ -140,14 +140,18 @@ routes = do
         let mcreds = M.lookup bucket userCreds
         case mcreds of
             Nothing -> blaze $ userContainer "Seems you don't have this bucket's credentials."
-            Just c  -> do infos <- liftIO $ listDirectory c bucket mprefix mdelim
-                          blaze $ listBucketHtml $ P.map objectKey infos
+            Just c  -> do
+                egbr <- listDirectory c bucket mprefix mdelim
+                case egbr of
+                    Left err -> showS3Error err
+                    Right GetBucketResponse{..} ->
+                        blaze $ listBucketHtml $ P.map objectKey gbrContents
 
     get UrlTask $ withAuthdUser $ const $ do
         task  <- param "task"
         tvar  <- MT.lift $ asks pTasks
         tasks <- liftIO $ atomically $ readTVar tvar
-        case M.lookup (UniqueID task) tasks of
+        case M.lookup (UniqueId task) tasks of
             Nothing -> blaze $ userContainer "It seems there is no such task."
             Just s  -> blaze $ taskHtml s
 
@@ -173,8 +177,18 @@ routes = do
                     return (FileAccess cf fbucket from, FileAccess ct tbucket to)
         case mc of
             Nothing -> blaze $ userContainer "Seems you don't have a bucket's credentials."
-            Just c  -> do _ <- liftIO $ uncurry copyFile c
-                          blaze $ userContainer "okay"
+            Just fs -> do
+                if fbucket == tbucket
+                then inBucket
+                else acrossBuckets
+                where inBucket = do ecor <- copyFileInBucket (fst fs) to
+                                    case ecor of
+                                        Left err -> showS3Error err
+                                        Right _ -> blaze $ userContainer "okay"
+                      acrossBuckets = do epor <- uncurry copyFile fs
+                                         case epor of
+                                             Left err -> showS3Error err
+                                             Right _ -> blaze $ userContainer "okay"
 
     get UrlCopyFolder $ withAuthdUser $ \u -> blaze $ copyFolderHtml $ userBuckets u
     post UrlCopyFolder $ withAuthdUser $ \(UserDetail{..}) -> do
@@ -189,8 +203,18 @@ routes = do
         liftIO $ print mc
         case mc of
             Nothing -> blaze $ userContainer "Seems you don't have a bucket's credentials."
-            Just c  -> do _ <- liftIO $ uncurry copyFile c
-                          blaze $ userContainer "okay"
+            Just c  -> do
+                if fbucket == tbucket
+                then inBucket
+                else acrossBuckets
+                where inBucket = do ecors <- copyDirectoryInBucket (fst c) to
+                                    case ecors of
+                                        Left err -> showS3Error err
+                                        Right _  -> blaze $ userContainer "okay"
+                      acrossBuckets = do epors <- uncurry copyDirectory c
+                                         case epors of
+                                             Left err -> showS3Error err
+                                             Right _  -> blaze $ userContainer "okay"
 
     -- Catchall with static dir lookup
     WST.get (function $ const $ Just []) $ do
@@ -237,30 +261,26 @@ postUploadRoute = withAuthdUser $ \UserDetail{userCreds=creds} -> do
     cenc  <- optionalParam "content-encoding"
     mkey  <- optionalParam "key"
     acl   <- defaultParam "acl" AclPublicRead
-    mngr  <- MT.lift $ asks pMngr
     case M.lookup buck creds of
         Nothing -> blaze $ userContainer "no creds for the bucket"
         Just c  -> do fs <- files
-                      ets <- forM fs (liftIO . uploadFile mngr c buck ctype cenc acl mkey)
-                      blaze $ userContainer $ H.div $ forM_ ets $ \et -> do
-                                   case et of
-                                       Left err -> H.p $ H.toHtml $ show err
-                                       Right po -> H.p $ H.toHtml $ show po
+                      ts <- forM fs (uploadFile c buck ctype cenc acl mkey)
+                      blaze $ userContainer $ H.div $ forM_ ts $ \uid ->
+                          taskLinkHtml uid
 
 postUploadZipRoute :: ActionP ()
 postUploadZipRoute = withAuthdUser $ \UserDetail{userCreds=creds} -> do
     buck   <- param "bucket"
     key    <- param "key"
     acl    <- defaultParam "acl" AclPublicRead
-    uid    <- newUniqueID
     case M.lookup buck creds of
         Nothing -> blaze $ userContainer "no creds for the bucket"
         Just c -> do f    <- P.head <$> files
-                     tmp  <- getTempDir
-                     tvar <- MT.lift $ asks pTasks
-                     mngr <- MT.lift $ asks pMngr
                      mcf  <- getCloudfrontDistroForBucket buck
-                     let op = OpUploadTarball mngr tmp uid tvar c (buck, mcf) acl key f
-                     liftIO $ uploadZippedDir op
-                     blaze $ userContainer $ taskLinkHtml uid
+                     (uid, fs) <- uploadZippedDir c buck acl key f
+                     blaze $ userContainer $ do
+                         taskLinkHtml uid
+                         flip (maybe (return ())) mcf $ \cf -> do
+                             cfUrl cf
+                             H.pre $ H.toHtml $ intercalate "\n" $ P.map pack fs
 

@@ -22,15 +22,6 @@ readCfgCookieLife = do
     -- Default sign-in cookie life is 30 days worth of seconds
     liftIO $ lookupDefault 2592000 cfg "sign-in-cookie-life"
 
-renewUserCookie :: ActionP ()
-renewUserCookie = do
-    seconds <- readCfgCookieLife
-    mUser <- readUserCookie
-    flip (maybe (liftIO $ putStrLn "Can't renew cookie.")) mUser $ \(UserCookie uid _) -> do
-        t <- liftIO $ getCurrentTime
-        let t' = addUTCTime (fromIntegral seconds) t
-        writeUserCookie $ UserCookie uid t'
-
 expireUserCookie :: ActionP ()
 expireUserCookie = do
     mUser <- readUserCookie

@@ -16,15 +16,15 @@ import Data.ByteString.Char8 as B
 import qualified Data.Map.Strict as M
 import qualified Data.Text.Lazy as LT
 
-newtype UniqueID = UniqueID Int deriving (Eq, Ord)
-type UIDVar = TVar UniqueID
+newtype UniqueId = UniqueId Int deriving (Eq, Ord)
+type UIDVar = TVar UniqueId
 
-instance Show UniqueID where
-    show (UniqueID uid) = show uid
+instance Show UniqueId where
+    show (UniqueId uid) = show uid
 
-instance Enum UniqueID where
-    fromEnum (UniqueID uid) = uid
-    toEnum = UniqueID
+instance Enum UniqueId where
+    fromEnum (UniqueId uid) = uid
+    toEnum = UniqueId
 
 data FileAccess = FileAccess { faCreds  :: AwsCreds
                              , faBucket :: Bucket
@@ -53,6 +53,9 @@ data TaskUpdate = TaskError Int String String
                 deriving (Show, Eq)
 
 data Task = PendingTask [TaskUpdate]
+          | FailedTask { ctaskUpdates :: [TaskUpdate]
+                       , ctaskTime    :: UTCTime
+                       }
           | CompletedTask { ctaskUpdates  :: [TaskUpdate]
                           , ctaskBucketCF :: (Bucket, Maybe Text)
                           -- ^ The bucket this task belonged to, along with
@@ -61,12 +64,20 @@ data Task = PendingTask [TaskUpdate]
                           }
           deriving (Show, Eq)
 
-type Tasks = M.Map UniqueID Task
+completeTask :: (Bucket, Maybe Text) -> UTCTime -> Task -> Task
+completeTask bcf utc (PendingTask tus) = CompletedTask tus bcf utc
+completeTask _ _ t = t
+
+failTask :: UTCTime -> Task -> Task
+failTask utc (PendingTask tus) = FailedTask tus utc
+failTask _ t = t
+
+type Tasks = M.Map UniqueId Task
 type TasksVar = TVar Tasks
 
 data OpUploadTarball = OpUploadTarball { optbManager :: Manager
                                        , optbTmp :: FilePath
-                                       , optbUID :: UniqueID
+                                       , optbUID :: UniqueId
                                        , optbTaskVar :: TasksVar
                                        , optbCreds :: AwsCreds
                                        , optbBucketCF :: (Bucket, Maybe Text)
