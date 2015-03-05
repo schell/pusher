@@ -121,8 +121,8 @@ defaultParam x def = do
 
 redirectToLogin :: ActionP ()
 redirectToLogin = do
-    path <- LT.fromStrict . T.intercalate "/" . pathInfo <$> request
-    redirect $ "/login?r=/" `LT.append` path
+    path <- T.unpack . T.intercalate "/" . pathInfo <$> request
+    redirect $ LT.pack $ show $ Uri UrlUserLogin [("r", path)]
 
 withAuthdNamePass :: UserName -> B.ByteString -> (UserDetail -> ActionP ()) -> ActionP ()
 withAuthdNamePass authname authpass f = do
