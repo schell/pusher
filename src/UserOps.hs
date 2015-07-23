@@ -3,7 +3,6 @@ module UserOps where
 
 import Types
 import Control.Concurrent.STM
-import Control.Applicative
 import Crypto.BCrypt
 import Aws.S3
 import Data.Text as T

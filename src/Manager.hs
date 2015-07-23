@@ -67,7 +67,7 @@ main = do
     -- Start up our good old scotty and give him some routes.
     let r = flip runReaderT (Pusher logVar usersVar cfdsVar cfg uidVar tasksVar mngr)
         f = do putStrLn "Running HTTP in the clear, SSL NOT enabled."
-               scottyT prt r r routes
+               scottyT prt r routes
         p c k = putStrLn $ unwords [ "SSL Certificate"
                                    , if c then "does" else "does not"
                                    , "exist. SSL Key"
@@ -80,5 +80,5 @@ main = do
                          keyExists <- doesFileExist k
                          if crtExists && keyExists
                          then do putStrLn "SSL Enabled."
-                                 scottyTTLS prt k c r r routes
+                                 scottyTTLS prt k c r routes
                          else p crtExists keyExists >> f

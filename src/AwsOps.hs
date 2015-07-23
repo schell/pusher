@@ -4,6 +4,7 @@
 module AwsOps where
 
 import Prelude as P
+import qualified Pusher.Operations as Ops
 import Types
 import Routes.Utils
 import Network.HTTP.Conduit
@@ -22,7 +23,6 @@ import Control.Monad.Trans.Resource
 import Control.Monad.Trans (liftIO)
 import Control.Concurrent.STM
 import Control.Concurrent
-import Control.Exception
 import System.Directory hiding (copyFile)
 import System.FilePath
 import System.Process
@@ -41,9 +41,8 @@ s3IO :: (Transaction r a, ServiceConfiguration r ~ S3Configuration)
      => Manager -> AwsCreds -> r -> IO (Either S3Error a)
 s3IO mngr AwsCreds{..} r = do
     creds <- liftIO $ makeCredentials awsKey awsSecret
-    let scfg = defServiceConfig :: S3Configuration NormalQuery
-        cfg  = Configuration Timestamp creds $ defaultLog Warning
-    try $ runResourceT $ pureAws cfg scfg mngr r
+    Ops.runS3 mngr creds r
+
 
 s3 :: (Transaction r a, ServiceConfiguration r ~ S3Configuration)
    => AwsCreds -> r -> ActionP (Either S3Error a)
@@ -64,12 +63,9 @@ fakeS3Error = S3Error { s3StatusCode = mkStatus 0 ""
 mkPutObject :: Bucket -> Maybe B.ByteString -> Maybe Text -> CannedAcl
             -> Maybe Text -> File -> PutObject
 mkPutObject buck ctype cenc acl mkey f =
-    let bdy  = RequestBodyLBS $ NWP.fileContent $ snd f
+    let lbs  = NWP.fileContent $ snd f
         name = maybe (LT.toStrict $ fst f) id mkey
-    in (putObject buck name bdy){ poContentType = ctype
-                                , poContentEncoding = cenc
-                                , poAcl = Just acl
-                                }
+    in Ops.mkPutObject buck ctype cenc acl name lbs
 
 --------------------------------------------------------------------------------
 -- IO Task handling
@@ -101,7 +97,6 @@ finalizeTaskFail :: TasksVar -> UniqueId -> IO ()
 finalizeTaskFail tvar uid = do
     t <- getCurrentTime
     atomically $ modifyTVar' tvar $ M.adjust (failTask t) uid
-    --
 --------------------------------------------------------------------------------
 -- IO Helpers
 --------------------------------------------------------------------------------
@@ -129,7 +124,6 @@ copyFileIO mngr f (FileAccess tcreds tbucket tkey) = do
            let r    = putObject tbucket tkey (RequestBodyLBS lbs)
                r'   = r{ poMetadata = omUserMetadata gorMetadata }
            s3IO mngr tcreds r'
-
 --------------------------------------------------------------------------------
 -- Actions
 --------------------------------------------------------------------------------

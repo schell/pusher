@@ -7,7 +7,6 @@ import Html.Url
 import Html.Bootstrap
 import Aws.S3
 import Control.Monad
-import Data.Monoid (mempty)
 import Text.Blaze.Html5
 import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5.Attributes as A

@@ -10,6 +10,7 @@
 module Routes.Utils where
 
 import Prelude as P
+import Pusher.Options
 import Html
 import Types
 import UserOps
@@ -22,7 +23,6 @@ import Network.HTTP.Types.Status
 import Network.HTTP.Client
 import Network.Wai
 import Control.Concurrent.STM
-import Control.Applicative
 import Control.Monad (when)
 import Control.Monad.Trans.Reader
 import Control.Monad.IO.Class (liftIO)
@@ -233,14 +233,8 @@ withCredsFor name pass bucket f = do
         Just c  -> f c
 
 instance Parsable CannedAcl where
-   parseParam "AclPrivate" = Right AclPrivate
-   parseParam "AclPublicRead" = Right AclPublicRead
-   parseParam "AclPublicReadWrite" = Right AclPublicReadWrite
-   parseParam "AclAuthenticatedRead" = Right AclAuthenticatedRead
-   parseParam "AclBucketOwnerRead" = Right AclBucketOwnerRead
-   parseParam "AclBucketOwnerFullControl" = Right AclBucketOwnerFullControl
-   parseParam "AclLogDeliveryWrite" = Right AclLogDeliveryWrite
-   parseParam _ = Left "Not a valid canned ACL"
+   parseParam = maybe (Left "Not a valid canned ACL")
+                      Right . readAcl . LT.unpack
 
 nothingIfNull :: (IsString a, Eq a)
               => Maybe a -> Maybe a

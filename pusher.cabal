@@ -45,10 +45,10 @@ build-type:          Simple
 -- Constraint on the version of Cabal needed to build this package.
 cabal-version:       >=1.10
 
-
 executable pusher
   -- .hs or .lhs file containing the Main module.
-  main-is:             Main.hs
+  main-is:             Pusher.hs
+  ghc-options:         -Wall -threaded
 
   -- Modules included in this executable, other than Main.
   -- other-modules:
@@ -57,10 +57,52 @@ executable pusher
   -- other-extensions:
 
   -- Other library packages from which modules are imported.
-  build-depends:       base >=4.7 && <4.8,
+  build-depends:       base >=4.7 && <4.9,
+                       ghc >= 7.2 && < 8.0,
+                       http-client >= 0.4 && < 0.5,
+                       http-client-tls >= 0.2 && < 0.3,
+                       scotty >= 0.10 && < 0.11,
+                       stm >= 2.4 && < 2.5,
+                       ghc >= 7.8 && < 7.12,
+                       bytestring,
+                       text,
+                       aws,
+                       containers,
+                       transformers,
+                       mtl >= 2.2.1,
+                       http-conduit,
+                       directory,
+                       configurator,
+                       conduit,
+                       conduit-extra,
+                       filepath,
+                       mime-types,
+                       time,
+                       resourcet
+
+  -- Directories containing source files.
+  hs-source-dirs:      src
+
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+
+executable manager
+  -- .hs or .lhs file containing the Main module.
+  main-is:             Manager.hs
+  ghc-options:         -Wall -threaded
+
+  -- Modules included in this executable, other than Main.
+  -- other-modules:
+
+  -- LANGUAGE extensions used by modules in this package.
+  -- other-extensions:
+
+  -- Other library packages from which modules are imported.
+  build-depends:       base >=4.7 && <4.9,
+                       ghc >= 7.8 && < 7.12,
                        mmorph,
                        scotty,
-                       scotty-tls,
                        blaze-html,
                        blaze-builder,
                        blaze-markup,
@@ -75,6 +117,8 @@ executable pusher
                        http-conduit,
                        wai,
                        wai-extra,
+                       warp >= 3.0 && < 4,
+                       warp-tls >= 3.0 && <4,
                        directory,
                        configurator,
                        http-types,

@@ -2,7 +2,6 @@
 module Html.Bootstrap where
 
 import Data.Text (Text)
-import Data.Monoid (mempty)
 import qualified Data.Text as T
 import Text.Blaze.Html5
 --import qualified Text.Blaze.Html5 as H
