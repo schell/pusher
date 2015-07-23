@@ -13,11 +13,12 @@ defaultOptions = Options { optShowVersion = False
                          , optKeyName = "default"
                          , optBucket = Nothing
                          , optPath = Nothing
-                         , optInput = Nothing
+                         , optFiles = []
                          , optMime = Nothing
                          , optAcl = Just "AclPublicRead"
                          , optEnc = Nothing
                          , optOperation = Nothing
+                         , optIsGzip = False
                          }
 
 options :: [OptDescr (Options -> Options)]
@@ -33,9 +34,6 @@ options = [ Option "v" ["version"]
           , Option "p" ["path"]
               (ReqArg (\s opts -> opts{ optPath = Just s }) "path")
               "Destination path."
-          , Option "i" ["input"]
-              (ReqArg (\s opts -> opts{ optInput = Just s }) "input")
-              "Input file."
           , Option "" ["mime"]
               (ReqArg (\s opts -> opts{ optMime = Just s }) "mime")
               "Destination mime-type."
@@ -45,6 +43,13 @@ options = [ Option "v" ["version"]
           , Option "" ["acl"]
               (ReqArg (\s opts -> opts{ optAcl = Just s }) "acl")
               "Destination canned ACL."
+          , Option "z" ["gzip"]
+              (NoArg (\opts -> opts{ optIsGzip = True }))
+              $ unwords [ "Uploaded files should maintain their .gz extension"
+                        , "and be served from S3 with a content-type of"
+                        , "application/x-gzip and will not be served gzip"
+                        , "encoded."
+                        ]
           , Option "o" ["op"]
               (ReqArg (\s opts -> opts{ optOperation = readOperation s }) "op")
               (unwords $ "Operation command. Valid values are" : vals)
@@ -52,7 +57,7 @@ options = [ Option "v" ["version"]
     where vals = map showOperation [ OperationUploadFile ]
 
 header :: String
-header = ""
+header = "Usage: pusher [options] INPUT_FILE1 INPUT_FILE2 INPUT_FILE3 ..."
 
 fullVersion :: String
 fullVersion = concat [ programVersion
@@ -68,11 +73,12 @@ data Options = Options { optShowVersion :: Bool
                        , optKeyName     :: String
                        , optBucket      :: Maybe String
                        , optPath        :: Maybe String
-                       , optInput       :: Maybe String
+                       , optFiles       :: [FilePath]
                        , optMime        :: Maybe String
                        , optEnc         :: Maybe String
                        , optAcl         :: Maybe String
                        , optOperation   :: Maybe Operation
+                       , optIsGzip      :: Bool
                        } deriving (Show, Eq)
 
 readAcl :: String -> Maybe CannedAcl
