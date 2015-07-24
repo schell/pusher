@@ -22,13 +22,15 @@ loadAwsCreds key = do
 
 loadJSONCreds :: IO (Maybe (FilePath, Credentials))
 loadJSONCreds = do
-    cwd    <- getCurrentDirectory
-    let file = cwd </> "deploy-auth.json"
-    exists <- doesFileExist file
-    if exists
-    then do mcreds <- readJSONCreds file
-            return $ (file,) <$> mcreds
-    else return Nothing
+    dirs <- getDirectories
+    mcreds <- forM dirs $ \dir -> do
+        let file = dir </> "deploy-auth.json"
+        exists <- doesFileExist file
+        if exists
+        then do mcreds <- readJSONCreds file
+                return $ (file,) <$> mcreds
+        else return Nothing
+    return $ msum mcreds
 
 readJSONCreds :: FilePath -> IO (Maybe Credentials)
 readJSONCreds file = do

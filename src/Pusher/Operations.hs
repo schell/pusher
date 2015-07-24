@@ -27,11 +27,14 @@ uploadFile :: Bucket -- ^ The destination bucket name.
            -> Bool -- ^ Whether or not to strip the .gz extension and set
                    --   content type to "gzip" when a gzip extension is
                    --   found.
+           -> Bool -- ^ Whether or not to maintain the directory structure
+                   --   of the local file when sent to s3.
            -> Manager -> Credentials -> IO ()
-uploadFile buck ctype cenc acl pfx file gz mngr creds = do
+uploadFile buck ctype cenc acl pfx file gz keepDirs mngr creds = do
     lbs <- LBS.readFile file
     let r = mkPutObject buck mtyp menc' acl (T.pack name) lbs
-        name = (T.unpack pfx) </> takeFileName file'
+        name = (T.unpack pfx) </> dir </> takeFileName file'
+        dir  = if keepDirs then takeDirectory' file' else ""
         menc' = (msum [menc, cenc])
         (menc,file') = if (".gz" `L.isSuffixOf` file) && gz
                        then (Just "gzip", dropExtension file)
@@ -59,10 +62,15 @@ uploadFile buck ctype cenc acl pfx file gz mngr creds = do
                                                 , "type: " ++ show mtyp
                                                 , "acl: " ++ show acl
                                                 , "prefix: " ++ show pfx
-                                                , "name: " ++
-                                                    (show $ takeFileName file')
+                                                , "dir: " ++ show dir
+                                                , "key: " ++ show name
                                                 ]
                        putStrLn $ "  " ++ info ++ "\n"
+
+takeDirectory' :: FilePath -> FilePath
+takeDirectory' = f . takeDirectory
+    where f ('.':xs) = xs
+          f xs = xs
 
 withSGR :: [SGR] -> IO () -> IO ()
 withSGR codes f = do

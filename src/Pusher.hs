@@ -7,9 +7,8 @@ import Control.Monad
 import Control.Concurrent.Async
 import System.Environment
 import System.Console.GetOpt
-import System.Console.ANSI
+import System.Directory
 import System.Pusher
-import System.FilePath
 import System.Exit
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
@@ -20,7 +19,6 @@ import Data.Text (pack)
 import Pusher.Options
 import Pusher.Operations
 import qualified Data.Text as T
-import qualified Data.ByteString.Lazy as LBS
 
 main :: IO ()
 main = do
@@ -36,7 +34,13 @@ start :: [FilePath] -> Options -> IO ()
 start files opts@Options{..} = do
     when optShowVersion $ putStrLn fullVersion
 
-    mfiles <- mapM checkFilePath files
+    -- Remove directories from the list of files to upload.
+    areDirs <- mapM doesDirectoryExist files
+    let files' = map snd $ filter ((== False) . fst) $ zip areDirs files
+
+    -- Check to make sure all local files exist.
+    mfiles  <- mapM checkFilePath files'
+    -- Get the raw filepaths
     fs <- case sequence mfiles of
         Nothing -> do putStrLn $ unlines $ "Some input files do not exist:":
                                            map (("  " ++) . show) mfiles
@@ -77,12 +81,13 @@ uploadFiles Options{..}
         acl    <- msum [check (optAcl >>= readAcl) "", Right AclPublicRead]
         path   <- msum [check optPath "", Right ""]
         return $ \mngr creds -> do
-            void $ (flip mapConcurrently) optFiles $ \file -> do
+            void $ (flip mapM) optFiles $ \file -> do
                 let buck  = T.pack bucket
                     ctype = (mkMime . T.pack) <$> optMime
                     cenc  = T.pack <$> optEnc
                     gz    = not optIsGzip
-                uploadFile buck ctype cenc acl (T.pack path) file gz mngr creds
+                    dirs  = optKeepDirs
+                uploadFile buck ctype cenc acl (T.pack path) file gz dirs mngr creds
 
     | otherwise = Left "Unknown option configuration."
 

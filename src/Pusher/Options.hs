@@ -19,6 +19,7 @@ defaultOptions = Options { optShowVersion = False
                          , optEnc = Nothing
                          , optOperation = Nothing
                          , optIsGzip = False
+                         , optKeepDirs = False
                          }
 
 options :: [OptDescr (Options -> Options)]
@@ -50,6 +51,11 @@ options = [ Option "v" ["version"]
                         , "application/x-gzip and will not be served gzip"
                         , "encoded."
                         ]
+          , Option "d" ["dirs"]
+              (NoArg (\opts -> opts{ optKeepDirs = True }))
+              $ unwords [ "Uploaded files should maintain their local directory"
+                        , "structures."
+                        ]
           , Option "o" ["op"]
               (ReqArg (\s opts -> opts{ optOperation = readOperation s }) "op")
               (unwords $ "Operation command. Valid values are" : vals)
@@ -79,6 +85,7 @@ data Options = Options { optShowVersion :: Bool
                        , optAcl         :: Maybe String
                        , optOperation   :: Maybe Operation
                        , optIsGzip      :: Bool
+                       , optKeepDirs    :: Bool
                        } deriving (Show, Eq)
 
 readAcl :: String -> Maybe CannedAcl
