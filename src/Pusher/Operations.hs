@@ -34,7 +34,10 @@ uploadFile buck ctype cenc acl pfx file gz keepDirs mngr creds = do
     lbs <- LBS.readFile file
     let r = mkPutObject buck mtyp menc' acl (T.pack name) lbs
         name = (T.unpack pfx) </> dir </> takeFileName file'
-        dir  = if keepDirs then takeDirectory' file' else ""
+        dir  = if keepDirs
+               then dropWhile (== '/') $ dropWhile (== '.') $
+                        takeDirectory' file'
+               else ""
         menc' = (msum [menc, cenc])
         (menc,file') = if (".gz" `L.isSuffixOf` file) && gz
                        then (Just "gzip", dropExtension file)
